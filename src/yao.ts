@@ -195,9 +195,9 @@ async function aes128Decrypt(key: Uint8Array, iv: Uint8Array, cipher: Uint8Array
   return new Uint8Array(pt);
 }
 
-function deriveGateKey(a: Uint8Array, b: Uint8Array, gateId: string, rowTag: string): Uint8Array {
+function deriveGateKey(a: Uint8Array, b: Uint8Array, gateId: string): Uint8Array {
   const encoder = new TextEncoder();
-  const material = concatBytes([a, b, encoder.encode(gateId), encoder.encode(rowTag)]);
+  const material = concatBytes([a, b, encoder.encode(gateId)]);
   return sha256(material).slice(0, 16);
 }
 
@@ -230,12 +230,11 @@ async function garbleBinaryGate(
     const bLabel = bBit === 0 ? inB.zero : inB.one;
     const outBit = logicalEval(type, aBit, bBit);
     const outLabel = outBit === 0 ? out.zero : out.one;
-    const rowTag = `${aBit}${bBit}`;
-    const key = deriveGateKey(aLabel, bLabel, gateId, rowTag);
+    const key = deriveGateKey(aLabel, bLabel, gateId);
     const encrypted = await aes128Encrypt(key, outLabel);
 
     rows.push({
-      rowId: `${gateId}:${rowTag}`,
+      rowId: `${gateId}:${aBit}${bBit}`,
       ivHex: bytesToHex(encrypted.iv),
       cipherHex: bytesToHex(encrypted.cipher),
       sourceInputs: [aBit, bBit],
@@ -274,7 +273,7 @@ export async function evaluateAndGateDemo(
   let successfulRowId: string | null = null;
 
   for (const row of demo.shuffledRows) {
-    const key = deriveGateKey(aLabel, bLabel, 'AND-demo', `${row.sourceInputs[0]}${row.sourceInputs[1]}`);
+    const key = deriveGateKey(aLabel, bLabel, 'AND-demo');
     const iv = hexToBytes(row.ivHex);
     const cipher = hexToBytes(row.cipherHex);
     try {
@@ -422,7 +421,7 @@ async function evaluateComparator(
     }
     const idx = (labelPermuteBit(active[gate.inA]) << 1) | labelPermuteBit(active[gate.inB]);
     const row = gate.table[idx];
-    const key = deriveGateKey(active[gate.inA], active[gate.inB], gate.id, `${row.sourceInputs[0]}${row.sourceInputs[1]}`);
+    const key = deriveGateKey(active[gate.inA], active[gate.inB], gate.id);
     active[gate.out] = await aes128Decrypt(key, hexToBytes(row.ivHex), hexToBytes(row.cipherHex));
   }
 }

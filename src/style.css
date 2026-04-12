@@ -140,6 +140,12 @@ h1 {
   letter-spacing: -0.02em;
 }
 
+h3 {
+  margin: 0.6rem 0 0.3rem;
+  font-size: 1.05rem;
+  color: var(--text);
+}
+
 .subtitle {
   margin: 0.45rem 0 0;
   color: var(--text-muted);
@@ -266,7 +272,12 @@ pre,
 code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   background: var(--code-bg);
-  border-radius: 8px;
+  border-radius: 4px;
+}
+
+code {
+  padding: 0.15em 0.35em;
+  font-size: 0.9em;
 }
 
 pre {

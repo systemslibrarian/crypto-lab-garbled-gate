@@ -155,9 +155,9 @@ function render(): void {
             <div style="flex:1; min-width:170px;"><button id="eval-and" class="btn" type="button">Evaluate</button></div>
             <div style="flex:1; min-width:170px;"><button id="reveal-and" class="btn" type="button">Reveal mapping</button></div>
           </div>
-          <div id="and-labels" class="status">Press Garble to generate wire labels.</div>
-          <div id="and-table" class="status">Garbled table not generated.</div>
-          <div id="and-eval" class="status">Evaluation pending.</div>
+          <div id="and-labels" class="status" aria-live="polite">Press Garble to generate wire labels.</div>
+          <div id="and-table" class="status" aria-live="polite">Garbled table not generated.</div>
+          <div id="and-eval" class="status" aria-live="polite">Evaluation pending.</div>
           <div class="callout">
             <strong>What Bob learns:</strong> output label and final bit after mapping reveal. Bob does not learn unused labels or the opposite output label.
           </div>
@@ -176,11 +176,11 @@ function render(): void {
             </div>
             <div style="flex:1; min-width:220px;"><button id="run-ot" class="btn" type="button">Run OT</button></div>
           </div>
-          <div id="ot-inputs" class="status">Messages W_B0 / W_B1 will appear after run.</div>
-          <div id="ot-steps" class="status">No OT run yet.</div>
+          <div id="ot-inputs" class="status" aria-live="polite">Messages W_B0 / W_B1 will appear after run.</div>
+          <div id="ot-steps" class="status" aria-live="polite">No OT run yet.</div>
           <div class="card-grid" style="margin-top:0.8rem;">
-            <div class="card"><strong>Locked box 0:</strong><div id="box0">Locked</div></div>
-            <div class="card"><strong>Locked box 1:</strong><div id="box1">Locked</div></div>
+            <div class="card"><strong>Locked box 0:</strong><div id="box0" aria-live="polite">Locked</div></div>
+            <div class="card"><strong>Locked box 1:</strong><div id="box1" aria-live="polite">Locked</div></div>
           </div>
           <div class="callout">
             <strong>Per-input-bit OT:</strong> one OT per Bob input bit. A 7-bit input uses 7 OTs. OT count grows linearly with Bob's input length.
@@ -206,8 +206,8 @@ function render(): void {
             </div>
             <div style="flex:1; min-width:220px;"><button id="run-full" class="btn" type="button">Run Full Protocol</button></div>
           </div>
-          <div id="full-steps" class="status">Run to see all seven protocol steps.</div>
-          <div id="full-result" class="status">Final output hidden.</div>
+          <div id="full-steps" class="status" aria-live="polite">Run to see all seven protocol steps.</div>
+          <div id="full-result" class="status" aria-live="polite">Final output hidden.</div>
           <div class="callout">
             <strong>Learning outcome:</strong> both parties learn only who is richer (or equal), not each other's actual value.
           </div>
@@ -254,7 +254,7 @@ function render(): void {
             </tbody>
           </table>
           </div>
-          <div id="efficiency-live" class="status">Run Exhibit 4 to compute actual byte counts for this demo circuit.</div>
+          <div id="efficiency-live" class="status" aria-live="polite">Run Exhibit 4 to compute actual byte counts for this demo circuit.</div>
           <div class="callout">
             <strong>Why this matters:</strong> Garbled circuits are the longest-running general MPC paradigm, with modern optimizations enabling practical deployments.
           </div>
@@ -288,8 +288,8 @@ function render(): void {
           `,
         )}
 
-        <section class="section">
-          <div class="section-head"><h2>References</h2></div>
+        <section class="section" aria-labelledby="refs-heading">
+          <div class="section-head"><h2 id="refs-heading">References</h2></div>
           <div class="section-body">
             <ul>
               <li>Andrew C. Yao, How to Generate and Exchange Secrets, FOCS 1986.</li>
@@ -330,11 +330,9 @@ function wireEvents(): void {
     const run = await runMillionaireProtocol3Bit(a3, b3);
     state.protocolRun = run;
 
-    const publicResult = a === b ? 'Equal' : a > b ? 'Alice is richer' : 'Bob is richer';
-
-    q('#millionaire-result').innerHTML = `Final public output: <strong>${publicResult}</strong>. Actual numeric values are not revealed in the protocol output.`;
+    q('#millionaire-result').innerHTML = `Final public output (from garbled circuit): <strong>${run.output}</strong>.<br>Alice's 3-bit value=${a3}, Bob's 3-bit value=${b3} (quantized from ${a} and ${b}).`;
     q('#full-steps').innerHTML = `<ol>${run.steps.map((s) => `<li>${s}</li>`).join('')}</ol>`;
-    q('#full-result').innerHTML = `Protocol output on simplified 3-bit circuit: <strong>${run.output}</strong>.`;
+    q('#full-result').innerHTML = `Protocol output: <strong>${run.output}</strong>.`;
     q('#efficiency-live').innerHTML = `Measured in this run: ${run.gateCount} total gates (${run.andOrCount} AND/OR, ${run.xorCount} XOR), ${run.otCount} OTs, garbled payload ${run.garbledBytes} bytes.`;
     } finally {
       btn.disabled = false;
@@ -344,6 +342,11 @@ function wireEvents(): void {
   });
 
   q<HTMLButtonElement>('#garble-and').addEventListener('click', async () => {
+    const btn = q<HTMLButtonElement>('#garble-and');
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    btn.textContent = 'Garbling…';
+    try {
     state.andDemo = await garbleAndGateDemo();
     const d = state.andDemo;
     q('#and-labels').innerHTML = `
@@ -365,6 +368,11 @@ function wireEvents(): void {
         .join('<br>')}
     `;
     q('#and-eval').textContent = 'Ready for evaluation.';
+    } finally {
+      btn.disabled = false;
+      btn.removeAttribute('aria-busy');
+      btn.textContent = 'Garble';
+    }
   });
 
   q<HTMLButtonElement>('#eval-and').addEventListener('click', async () => {
@@ -372,15 +380,25 @@ function wireEvents(): void {
       q('#and-eval').textContent = 'Garble first.';
       return;
     }
-    const aBit = Number.parseInt(q<HTMLSelectElement>('#and-a').value, 10) as 0 | 1;
-    const bBit = Number.parseInt(q<HTMLSelectElement>('#and-b').value, 10) as 0 | 1;
-    const evalOut = await evaluateAndGateDemo(state.andDemo, aBit, bBit, false);
-    q('#and-eval').innerHTML = `
-      <strong>Step 5 evaluation</strong><br>
-      Attempts: ${evalOut.attempted.map((a) => `${a.rowId}:${a.success ? 'ok' : 'fail'}`).join(', ')}<br>
-      Successful row: ${evalOut.successfulRowId ?? 'none'}<br>
-      Output label: ${evalOut.outputLabelHex || 'none'}
-    `;
+    const evalBtn = q<HTMLButtonElement>('#eval-and');
+    evalBtn.disabled = true;
+    evalBtn.setAttribute('aria-busy', 'true');
+    evalBtn.textContent = 'Evaluating…';
+    try {
+      const aBit = Number.parseInt(q<HTMLSelectElement>('#and-a').value, 10) as 0 | 1;
+      const bBit = Number.parseInt(q<HTMLSelectElement>('#and-b').value, 10) as 0 | 1;
+      const evalOut = await evaluateAndGateDemo(state.andDemo, aBit, bBit, false);
+      q('#and-eval').innerHTML = `
+        <strong>Step 5 evaluation</strong><br>
+        Attempts: ${evalOut.attempted.map((a) => `${a.rowId}:${a.success ? 'ok' : 'fail'}`).join(', ')}<br>
+        Successful row: ${evalOut.successfulRowId ?? 'none'}<br>
+        Output label: ${evalOut.outputLabelHex || 'none'}
+      `;
+    } finally {
+      evalBtn.disabled = false;
+      evalBtn.removeAttribute('aria-busy');
+      evalBtn.textContent = 'Evaluate';
+    }
   });
 
   q<HTMLButtonElement>('#reveal-and').addEventListener('click', async () => {
@@ -388,11 +406,21 @@ function wireEvents(): void {
       q('#and-eval').textContent = 'Garble first.';
       return;
     }
-    const aBit = Number.parseInt(q<HTMLSelectElement>('#and-a').value, 10) as 0 | 1;
-    const bBit = Number.parseInt(q<HTMLSelectElement>('#and-b').value, 10) as 0 | 1;
-    const evalOut = await evaluateAndGateDemo(state.andDemo, aBit, bBit, true);
-    const bitTxt = evalOut.outputBit === null ? 'undetermined' : String(evalOut.outputBit);
-    q('#and-eval').innerHTML = `${q('#and-eval').innerHTML}<br><strong>Reveal mapping:</strong> output bit = ${bitTxt}`;
+    const revBtn = q<HTMLButtonElement>('#reveal-and');
+    revBtn.disabled = true;
+    revBtn.setAttribute('aria-busy', 'true');
+    revBtn.textContent = 'Revealing…';
+    try {
+      const aBit = Number.parseInt(q<HTMLSelectElement>('#and-a').value, 10) as 0 | 1;
+      const bBit = Number.parseInt(q<HTMLSelectElement>('#and-b').value, 10) as 0 | 1;
+      const evalOut = await evaluateAndGateDemo(state.andDemo, aBit, bBit, true);
+      const bitTxt = evalOut.outputBit === null ? 'undetermined' : String(evalOut.outputBit);
+      q('#and-eval').innerHTML = `${q('#and-eval').innerHTML}<br><strong>Reveal mapping:</strong> output bit = ${bitTxt}`;
+    } finally {
+      revBtn.disabled = false;
+      revBtn.removeAttribute('aria-busy');
+      revBtn.textContent = 'Reveal mapping';
+    }
   });
 
   q<HTMLButtonElement>('#run-ot').addEventListener('click', async () => {
