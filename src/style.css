@@ -38,8 +38,61 @@
   --hidden: #dc2626;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+}
+
+/* ── Screen-reader only ─────────────────────────────────── */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Skip navigation ───────────────────────────────────── */
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  padding: 0.75rem 1.25rem;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  border-radius: 0 0 6px 0;
+  text-decoration: none;
+}
+.skip-link:focus {
+  left: 0;
+}
+
+/* ── Reduced motion ────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Focus styles (a11y) ───────────────────────────────── */
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 body {
@@ -191,12 +244,22 @@ button,
   padding: 0.55rem 0.75rem;
   cursor: pointer;
   font-weight: 600;
+  font-size: 1rem;
+  min-height: 44px;
+  min-width: 44px;
+  touch-action: manipulation;
 }
 
 button:hover,
 .btn:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+button:disabled,
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 pre,
@@ -229,12 +292,50 @@ pre {
   background: color-mix(in srgb, var(--surface-alt) 65%, transparent);
 }
 
+select {
+  min-height: 44px;
+  font-size: 1rem;
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+input[type='range'] {
+  min-height: 44px;
+  cursor: pointer;
+}
+
 .status {
   border: 1px dashed var(--border);
   border-radius: 8px;
   padding: 0.7rem;
   margin-top: 0.7rem;
   font-size: 0.93rem;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.status code,
+.status span {
+  word-break: break-all;
+}
+
+output {
+  font-weight: 700;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0.5rem 0;
+}
+
+.table-wrap:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .ok {
@@ -256,15 +357,80 @@ pre {
   padding: 0.8rem;
   background: var(--surface);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-x: auto;
+  font-size: 0.9rem;
+  line-height: 1.6;
 }
+
+/* ── Mobile breakpoints ────────────────────────────────── */
 
 @media (max-width: 760px) {
   .header-grid {
     padding-right: 0;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
   .theme-toggle {
     top: 0.7rem;
     right: 0.7rem;
+  }
+
+  .subtitle {
+    font-size: 0.85rem;
+  }
+
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .row > div {
+    min-width: 0 !important;
+    width: 100%;
+  }
+
+  .section-body {
+    padding: 0.75rem;
+  }
+
+  .section-head {
+    padding: 0.75rem 0.75rem 0.55rem;
+  }
+
+  .section h2 {
+    font-size: 1.1rem;
+  }
+
+  .table th,
+  .table td {
+    padding: 0.35rem 0.4rem;
+    font-size: 0.82rem;
+  }
+
+  .family-tree {
+    font-size: 0.8rem;
+  }
+
+  .container {
+    width: calc(100% - 1rem);
+  }
+}
+
+@media (max-width: 480px) {
+  h1 {
+    font-size: 1.3rem;
+  }
+
+  .section {
+    border-radius: 8px;
+  }
+
+  .callout {
+    font-size: 0.88rem;
   }
 }

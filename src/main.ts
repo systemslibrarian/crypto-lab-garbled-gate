@@ -49,9 +49,10 @@ function setupThemeToggle(): void {
 }
 
 function sectionTemplate(id: string, title: string, body: string): string {
+  const headingId = `${id}-heading`;
   return `
-    <section class="section" id="${id}">
-      <div class="section-head"><h2>${title}</h2></div>
+    <section class="section" id="${id}" aria-labelledby="${headingId}">
+      <div class="section-head"><h2 id="${headingId}">${title}</h2></div>
       <div class="section-body">${body}</div>
     </section>
   `;
@@ -64,6 +65,7 @@ function formatMoney(value: number): string {
 function render(): void {
   const app = q('#app');
   app.innerHTML = `
+    <a href="#ex1" class="skip-link">Skip to main content</a>
     <header class="site-header" role="banner">
       <div class="container header-grid">
         <div>
@@ -76,7 +78,7 @@ function render(): void {
       </div>
     </header>
 
-    <main>
+    <main role="main" id="main-content">
       <div class="container">
         ${sectionTemplate(
           'ex1',
@@ -105,12 +107,12 @@ function render(): void {
           </div>
           <div class="row" style="margin-top:0.8rem;">
             <div style="flex:1; min-width:210px;">
-              <label for="alice-wealth">Alice wealth: <strong id="alice-wealth-val">${formatMoney(40)}</strong></label>
-              <input id="alice-wealth" type="range" min="1" max="100" value="40" />
+              <label for="alice-wealth">Alice wealth: <output id="alice-wealth-val" for="alice-wealth">${formatMoney(40)}</output></label>
+              <input id="alice-wealth" type="range" min="1" max="100" value="40" aria-describedby="alice-wealth-val" />
             </div>
             <div style="flex:1; min-width:210px;">
-              <label for="bob-wealth">Bob wealth: <strong id="bob-wealth-val">${formatMoney(35)}</strong></label>
-              <input id="bob-wealth" type="range" min="1" max="100" value="35" />
+              <label for="bob-wealth">Bob wealth: <output id="bob-wealth-val" for="bob-wealth">${formatMoney(35)}</output></label>
+              <input id="bob-wealth" type="range" min="1" max="100" value="35" aria-describedby="bob-wealth-val" />
             </div>
             <div style="flex:1; min-width:220px;">
               <button id="solve-millionaire" class="btn" type="button">Solve with Garbled Circuits</button>
@@ -128,8 +130,10 @@ function render(): void {
           'Exhibit 2 - What a Garbled Circuit Is (AND gate demo)',
           `
           <p>This interactive panel uses a single AND gate as the building block. Labels are real random 128-bit values from <code>crypto.getRandomValues</code>. Rows are encrypted with WebCrypto AES-128-GCM and displayed in shuffled order.</p>
+          <div class="table-wrap" tabindex="0" role="region" aria-label="AND gate truth table">
           <table class="table">
-            <thead><tr><th>A</th><th>B</th><th>AND(A,B)</th></tr></thead>
+            <caption class="sr-only">AND gate truth table</caption>
+            <thead><tr><th scope="col">A</th><th scope="col">B</th><th scope="col">AND(A,B)</th></tr></thead>
             <tbody>
               <tr><td>0</td><td>0</td><td>0</td></tr>
               <tr><td>0</td><td>1</td><td>0</td></tr>
@@ -137,6 +141,7 @@ function render(): void {
               <tr><td>1</td><td>1</td><td>1</td></tr>
             </tbody>
           </table>
+          </div>
           <div class="row" style="margin-top:0.8rem;">
             <div style="flex:1; min-width:220px;"><button id="garble-and" class="btn" type="button">Garble</button></div>
             <div style="flex:1; min-width:140px;">
@@ -191,13 +196,13 @@ function render(): void {
           <div class="row">
             <div style="flex:1; min-width:190px;">
               <label for="full-alice">Alice value (1-7)</label>
-              <input id="full-alice" type="range" min="1" max="7" value="5" />
-              <div id="full-alice-val">5</div>
+              <input id="full-alice" type="range" min="1" max="7" value="5" aria-valuemin="1" aria-valuemax="7" aria-valuenow="5" aria-describedby="full-alice-val" />
+              <output id="full-alice-val" for="full-alice">5</output>
             </div>
             <div style="flex:1; min-width:190px;">
               <label for="full-bob">Bob value (1-7)</label>
-              <input id="full-bob" type="range" min="1" max="7" value="3" />
-              <div id="full-bob-val">3</div>
+              <input id="full-bob" type="range" min="1" max="7" value="3" aria-valuemin="1" aria-valuemax="7" aria-valuenow="3" aria-describedby="full-bob-val" />
+              <output id="full-bob-val" for="full-bob">3</output>
             </div>
             <div style="flex:1; min-width:220px;"><button id="run-full" class="btn" type="button">Run Full Protocol</button></div>
           </div>
@@ -233,9 +238,11 @@ function render(): void {
               </ul>
             </div>
           </div>
+          <div class="table-wrap" tabindex="0" role="region" aria-label="MPC protocol comparison table">
           <table class="table" style="margin-top:0.8rem;">
+            <caption class="sr-only">Comparison of MPC approaches</caption>
             <thead>
-              <tr><th>Property</th><th>Garbled Circuits</th><th>Secret Sharing MPC</th><th>FHE-based MPC</th></tr>
+              <tr><th scope="col">Property</th><th scope="col">Garbled Circuits</th><th scope="col">Secret Sharing MPC</th><th scope="col">FHE-based MPC</th></tr>
             </thead>
             <tbody>
               <tr><td>Function type</td><td>Any boolean</td><td>Any arithmetic</td><td>Any</td></tr>
@@ -246,6 +253,7 @@ function render(): void {
               <tr><td>Practical for</td><td>2-party</td><td>Multi-party</td><td>Research</td></tr>
             </tbody>
           </table>
+          </div>
           <div id="efficiency-live" class="status">Run Exhibit 4 to compute actual byte counts for this demo circuit.</div>
           <div class="callout">
             <strong>Why this matters:</strong> Garbled circuits are the longest-running general MPC paradigm, with modern optimizations enabling practical deployments.
@@ -263,12 +271,12 @@ function render(): void {
             <div class="card"><h3>Private Auctions</h3><p>Sealed-bid workflows can reveal only winner and final price while hiding losing bids.</p></div>
             <div class="card"><h3>Threshold Cryptography</h3><p>OT-derived techniques from GC literature appear in threshold ECDSA families such as GG20.</p></div>
           </div>
-          <div class="family-tree" style="margin-top:0.8rem;">Yao's Garbled Circuits (1986) - general 2-party
+          <div class="family-tree" role="img" aria-label="MPC protocol family tree showing lineage from Yao 1986 to ABY 2015" style="margin-top:0.8rem;">Yao's Garbled Circuits (1986) - general 2-party
 |- GMW protocol (1987) - multi-party extension
 |- BGW protocol (1988) - information-theoretic MPC
 |- SPDZ (2012) - malicious-secure multi-party
 |- ABY (2015) - mixed Arithmetic/Boolean/Yao protocols</div>
-          <div class="status" style="margin-top:0.8rem;">
+          <nav aria-label="Cross-demo links" class="status" style="margin-top:0.8rem;">
             Cross-demo links:
             <ul>
               <li><a href="https://systemslibrarian.github.io/crypto-lab-ot-gate/" target="_blank" rel="noopener">OT Gate (1-of-2 OT)</a></li>
@@ -276,7 +284,7 @@ function render(): void {
               <li><a href="https://systemslibrarian.github.io/crypto-lab-oblivious-shelf/" target="_blank" rel="noopener">Oblivious Shelf (PIR)</a></li>
               <li><a href="https://systemslibrarian.github.io/crypto-compare/" target="_blank" rel="noopener">Crypto Compare reference</a></li>
             </ul>
-          </div>
+          </nav>
           `,
         )}
 
@@ -309,6 +317,11 @@ function wireEvents(): void {
   });
 
   q<HTMLButtonElement>('#solve-millionaire').addEventListener('click', async () => {
+    const btn = q<HTMLButtonElement>('#solve-millionaire');
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    btn.textContent = 'Running…';
+    try {
     const a = Number.parseInt(alice.value, 10);
     const b = Number.parseInt(bob.value, 10);
 
@@ -323,6 +336,11 @@ function wireEvents(): void {
     q('#full-steps').innerHTML = `<ol>${run.steps.map((s) => `<li>${s}</li>`).join('')}</ol>`;
     q('#full-result').innerHTML = `Protocol output on simplified 3-bit circuit: <strong>${run.output}</strong>.`;
     q('#efficiency-live').innerHTML = `Measured in this run: ${run.gateCount} total gates (${run.andOrCount} AND/OR, ${run.xorCount} XOR), ${run.otCount} OTs, garbled payload ${run.garbledBytes} bytes.`;
+    } finally {
+      btn.disabled = false;
+      btn.removeAttribute('aria-busy');
+      btn.textContent = 'Solve with Garbled Circuits';
+    }
   });
 
   q<HTMLButtonElement>('#garble-and').addEventListener('click', async () => {
@@ -378,6 +396,11 @@ function wireEvents(): void {
   });
 
   q<HTMLButtonElement>('#run-ot').addEventListener('click', async () => {
+    const otBtn = q<HTMLButtonElement>('#run-ot');
+    otBtn.disabled = true;
+    otBtn.setAttribute('aria-busy', 'true');
+    otBtn.textContent = 'Running…';
+    try {
     const choice = Number.parseInt(q<HTMLSelectElement>('#ot-choice').value, 10) as 0 | 1;
     const m0 = crypto.getRandomValues(new Uint8Array(16));
     const m1 = crypto.getRandomValues(new Uint8Array(16));
@@ -394,23 +417,40 @@ function wireEvents(): void {
 
     q('#box0').innerHTML = choice === 0 ? `<span class="ok">Opened: ${trace.receivedHex.slice(0, 20)}...</span>` : '<span class="bad">Remains locked</span>';
     q('#box1').innerHTML = choice === 1 ? `<span class="ok">Opened: ${trace.receivedHex.slice(0, 20)}...</span>` : '<span class="bad">Remains locked</span>';
+    } finally {
+      otBtn.disabled = false;
+      otBtn.removeAttribute('aria-busy');
+      otBtn.textContent = 'Run OT';
+    }
   });
 
   const fullAlice = q<HTMLInputElement>('#full-alice');
   const fullBob = q<HTMLInputElement>('#full-bob');
   fullAlice.addEventListener('input', () => {
     q('#full-alice-val').textContent = fullAlice.value;
+    fullAlice.setAttribute('aria-valuenow', fullAlice.value);
   });
   fullBob.addEventListener('input', () => {
     q('#full-bob-val').textContent = fullBob.value;
+    fullBob.setAttribute('aria-valuenow', fullBob.value);
   });
 
   q<HTMLButtonElement>('#run-full').addEventListener('click', async () => {
+    const fullBtn = q<HTMLButtonElement>('#run-full');
+    fullBtn.disabled = true;
+    fullBtn.setAttribute('aria-busy', 'true');
+    fullBtn.textContent = 'Running…';
+    try {
     const run = await runMillionaireProtocol3Bit(Number.parseInt(fullAlice.value, 10), Number.parseInt(fullBob.value, 10));
     state.protocolRun = run;
     q('#full-steps').innerHTML = `<ol>${run.steps.map((s) => `<li>${s}</li>`).join('')}</ol>`;
     q('#full-result').innerHTML = `Final output: <strong>${run.output}</strong>. Alice and Bob learn output only.`;
     q('#efficiency-live').innerHTML = `Measured in this run: ${run.gateCount} total gates (${run.andOrCount} AND/OR, ${run.xorCount} XOR), ${run.otCount} OTs, garbled payload ${run.garbledBytes} bytes.`;
+    } finally {
+      fullBtn.disabled = false;
+      fullBtn.removeAttribute('aria-busy');
+      fullBtn.textContent = 'Run Full Protocol';
+    }
   });
 }
 
