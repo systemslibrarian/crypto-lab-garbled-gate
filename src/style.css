@@ -16,6 +16,8 @@
   --success: #34d399;
   --warning: #fb923c;
   --hidden: #ef4444;
+  --bit0: #38bdf8;
+  --bit1: #c084fc;
 }
 
 [data-theme='light'] {
@@ -36,6 +38,8 @@
   --success: #059669;
   --warning: #ea580c;
   --hidden: #dc2626;
+  --bit0: #0284c7;
+  --bit1: #9333ea;
 }
 
 *,
@@ -443,5 +447,566 @@ output {
 
   .callout {
     font-size: 0.88rem;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Garbled-gate visual components
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ── Table of contents nav ─────────────────────────────────────────────── */
+.toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 1rem 0 0;
+}
+.toc a {
+  text-decoration: none;
+  font-size: 0.84rem;
+  font-weight: 600;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+}
+.toc a:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Button variants ───────────────────────────────────────────────────── */
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn-primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: #fff;
+}
+.btn-ghost {
+  background: transparent;
+}
+.muted {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+.verdict {
+  color: var(--accent);
+}
+
+/* ── Stepper toolbar ───────────────────────────────────────────────────── */
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: end;
+  margin: 0.9rem 0;
+}
+.stepper .btn {
+  width: auto;
+  flex: 0 0 auto;
+}
+.step-inputs {
+  flex: 0 0 auto;
+}
+.step-inputs label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 0.1rem;
+}
+.step-inputs select {
+  width: 4.6rem;
+}
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  cursor: pointer;
+  user-select: none;
+}
+.switch input {
+  width: auto;
+  min-height: 0;
+  accent-color: var(--accent);
+}
+
+/* ── Legend ────────────────────────────────────────────────────────────── */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding: 0.6rem 0.7rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  margin: 0.3rem 0 0.8rem;
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.swatch {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+/* ── Wire-label chips ──────────────────────────────────────────────────── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.25rem 0.5rem;
+  background: var(--surface);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  margin: 0.18rem 0;
+  transition: border-color 0.15s, box-shadow 0.15s, opacity 0.15s;
+}
+.chip-mini {
+  padding: 0.1rem 0.3rem;
+  font-size: 0.72rem;
+}
+.chip-name {
+  font-weight: 700;
+}
+.chip-bit {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+.chip-bit0 .chip-bit {
+  color: var(--bit0);
+}
+.chip-bit1 .chip-bit {
+  color: var(--bit1);
+}
+.chip-hex {
+  color: var(--text-muted);
+}
+.chip-colour {
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: #fff;
+}
+.colour-0 {
+  background: #64748b;
+}
+.colour-1 {
+  background: #0f172a;
+  border: 1px solid #64748b;
+}
+.chip-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.chip-dim {
+  opacity: 0.4;
+}
+
+/* ── AND-gate stage ────────────────────────────────────────────────────── */
+.and-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) 1fr;
+  gap: 1rem;
+  align-items: center;
+  margin: 0.4rem 0 0.8rem;
+}
+.gate-svg {
+  width: 100%;
+  height: auto;
+}
+.gate-glyph {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  fill: var(--text);
+}
+.gate-pin {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+  fill: var(--text-muted);
+}
+.gate-bit {
+  fill: var(--surface);
+  stroke: var(--border);
+  stroke-width: 2;
+}
+.gate-bit-on {
+  fill: color-mix(in srgb, var(--accent) 30%, var(--surface));
+  stroke: var(--accent);
+}
+.gate-bit-txt {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  fill: var(--text);
+}
+.wire-panel {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+}
+.wire-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.wire-col-h {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 0.1rem;
+}
+
+/* ── Garbled padlock table ─────────────────────────────────────────────── */
+.lock-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0.4rem 0;
+}
+.lock-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  font-size: 0.84rem;
+  flex-wrap: wrap;
+}
+.lock {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+.lock-mini {
+  font-size: 0.9rem;
+}
+.lock-slot {
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+}
+.lock-colours {
+  display: inline-flex;
+  gap: 0.2rem;
+}
+.lock-ct {
+  font-family: ui-monospace, monospace;
+  color: var(--text-muted);
+}
+.lock-out {
+  font-family: ui-monospace, monospace;
+  color: var(--success);
+  font-weight: 700;
+}
+.lock-note {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+.lock-open {
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+}
+.lock-dead {
+  opacity: 0.5;
+  border-style: dashed;
+}
+.lock-dim {
+  opacity: 0.45;
+}
+.trial-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+  align-items: center;
+}
+.trial-cell {
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+}
+.trial-ok {
+  color: var(--success);
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+}
+.trial-fail {
+  color: var(--hidden);
+  border-color: color-mix(in srgb, var(--hidden) 50%, var(--border));
+}
+.trial-caption {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  flex-basis: 100%;
+}
+.empty-stage {
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 1.4rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+.stage-narrate {
+  border-style: solid;
+}
+
+/* ── OT boxes ──────────────────────────────────────────────────────────── */
+.ot-boxes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+  margin: 0.8rem 0;
+}
+.ot-box {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.ot-box-top {
+  padding: 0.45rem 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--surface-alt) 70%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+.ot-box-body {
+  padding: 0.7rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.82rem;
+}
+.ot-box-open {
+  border-color: var(--success);
+}
+.ot-box-open .ot-box-body {
+  color: var(--success);
+}
+.tight {
+  margin: 0.3rem 0;
+  padding-left: 1.1rem;
+}
+.tight li {
+  margin: 0.2rem 0;
+}
+
+/* ── Circuit diagram ───────────────────────────────────────────────────── */
+.circuit-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 0.5rem;
+  margin: 0.5rem 0;
+  -webkit-overflow-scrolling: touch;
+}
+.circuit-svg {
+  display: block;
+  min-width: 640px;
+  height: auto;
+}
+.cnode rect {
+  fill: var(--surface-alt);
+  stroke: var(--border);
+  stroke-width: 1.5;
+  transition: fill 0.2s, stroke 0.2s;
+}
+.cnode-label {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  fill: var(--text);
+}
+.cnode-sub {
+  font-family: ui-monospace, monospace;
+  font-size: 0.6rem;
+  fill: var(--text-muted);
+}
+.cnode-bit {
+  font-family: ui-monospace, monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.bit-0 {
+  fill: var(--bit0);
+}
+.bit-1 {
+  fill: var(--bit1);
+}
+.cnode-alice rect {
+  stroke: var(--sender-color);
+  fill: var(--sender-surface);
+}
+.cnode-bob rect {
+  stroke: var(--receiver-color);
+  fill: var(--receiver-surface);
+}
+.cnode-const rect {
+  stroke-dasharray: 3 3;
+}
+.cnode-xor rect {
+  stroke: var(--channel-color);
+}
+.cnode-gate rect {
+  stroke: var(--accent);
+}
+.cnode-out rect {
+  stroke-width: 2.5;
+}
+.cnode-on rect {
+  fill: color-mix(in srgb, var(--success) 16%, var(--surface-alt));
+}
+.swatch.cnode-alice {
+  background: var(--sender-surface);
+  border: 2px solid var(--sender-color);
+}
+.swatch.cnode-bob {
+  background: var(--receiver-surface);
+  border: 2px solid var(--receiver-color);
+}
+.swatch.cnode-xor {
+  background: var(--surface-alt);
+  border: 2px solid var(--channel-color);
+}
+.swatch.cnode-gate {
+  background: var(--surface-alt);
+  border: 2px solid var(--accent);
+}
+.swatch.cnode-out {
+  background: var(--surface-alt);
+  border: 2.5px solid var(--accent);
+}
+.circuit-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding: 0.5rem 0.3rem 0.2rem;
+}
+
+/* ── Meter grid ────────────────────────────────────────────────────────── */
+.meter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.5rem;
+  margin: 0.7rem 0;
+}
+.meter {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 0.55rem 0.6rem;
+  background: var(--surface);
+  text-align: center;
+}
+.meter-v {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: var(--accent);
+}
+.meter-k {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.checklist {
+  margin: 0.2rem 0;
+  padding-left: 1.2rem;
+}
+.checklist li {
+  margin: 0.2rem 0;
+}
+
+/* ── Quizzes ───────────────────────────────────────────────────────────── */
+.quiz {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warning);
+  border-radius: 8px;
+  padding: 0.8rem;
+  margin-top: 0.9rem;
+  background: color-mix(in srgb, var(--warning) 6%, var(--surface));
+}
+.quiz-q {
+  margin: 0 0 0.6rem;
+}
+.quiz-tag {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--warning);
+  margin-right: 0.4rem;
+}
+.quiz-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.quiz-opt {
+  text-align: left;
+  width: 100%;
+  background: var(--surface);
+}
+.quiz-correct {
+  border-color: var(--success);
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+}
+.quiz-wrong {
+  border-color: var(--hidden);
+  color: var(--hidden);
+  background: color-mix(in srgb, var(--hidden) 10%, var(--surface));
+}
+.quiz-feedback {
+  margin-top: 0.5rem;
+  font-size: 0.88rem;
+}
+.quiz-feedback:empty {
+  display: none;
+}
+
+/* ── Mobile tweaks for new components ──────────────────────────────────── */
+@media (max-width: 760px) {
+  .and-grid {
+    grid-template-columns: 1fr;
+  }
+  .wire-panel {
+    grid-template-columns: 1fr;
+  }
+  .ot-boxes {
+    grid-template-columns: 1fr;
+  }
+  .stepper .btn,
+  .stepper .step-inputs,
+  .stepper .switch {
+    width: 100%;
+  }
+  .step-inputs select {
+    width: 100%;
+  }
+  .lock-note {
+    margin-left: 0;
+    flex-basis: 100%;
   }
 }

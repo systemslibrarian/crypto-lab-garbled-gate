@@ -1,52 +1,119 @@
 import './style.css';
 import {
   bytesToHex,
+  comparatorLayout,
   evaluateAndGateDemo,
   garbleAndGateDemo,
+  labelPermuteBit,
   runInputLabelOT,
   runMillionaireProtocol3Bit,
+  trialDecryptAll,
   type AndGateDemo,
+  type AndGateEvaluation,
+  type CircuitLayout,
   type MillionaireProtocolResult,
 } from './yao';
 
+// ── State ────────────────────────────────────────────────────────────────
+
 interface AppState {
   andDemo: AndGateDemo | null;
-  protocolRun: MillionaireProtocolResult | null;
+  andEval: AndGateEvaluation | null;
+  andTrial: Array<{ slot: number; ok: boolean }> | null;
+  protocol: MillionaireProtocolResult | null;
+  protoStep: number; // how many gates have been evaluated in the walkthrough
+  godView: boolean;
+  autoTimer: number | null;
 }
 
 const state: AppState = {
   andDemo: null,
-  protocolRun: null,
+  andEval: null,
+  andTrial: null,
+  protocol: null,
+  protoStep: 0,
+  godView: false,
+  autoTimer: null,
 };
+
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ── DOM helpers ──────────────────────────────────────────────────────────
 
 function q<T extends HTMLElement>(selector: string): T {
   const el = document.querySelector(selector);
-  if (!el) {
-    throw new Error(`Missing element: ${selector}`);
-  }
+  if (!el) throw new Error(`Missing element: ${selector}`);
   return el as T;
 }
 
-function setThemeButton(theme: 'dark' | 'light'): void {
-  const btn = q<HTMLButtonElement>('#theme-toggle');
-  btn.textContent = theme === 'dark' ? '🌙' : '☀️';
-  btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+function maybe<T extends HTMLElement>(selector: string): T | null {
+  return document.querySelector(selector) as T | null;
 }
 
-function setupThemeToggle(): void {
-  const btn = q<HTMLButtonElement>('#theme-toggle');
-
-  const initial = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
-  setThemeButton(initial);
-
-  btn.addEventListener('click', () => {
-    const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
-    const next: 'dark' | 'light' = current === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    localStorage.setItem('theme', next);
-    setThemeButton(next);
-  });
+function esc(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }
+
+function shortHex(hex: string, head = 8, tail = 4): string {
+  if (hex.length <= (head + tail) * 2) return hex;
+  return `${hex.slice(0, head * 2)}…${hex.slice(-tail * 2)}`;
+}
+
+// ── Visual primitives ────────────────────────────────────────────────────
+
+/** A wire-label chip: 16 random bytes that secretly encode a bit. */
+function labelChip(
+  name: string,
+  hex: string,
+  opts: { bit?: 0 | 1 | null; active?: boolean; dim?: boolean; reveal?: boolean } = {},
+): string {
+  const colour = labelPermuteBit(hexBytesLast(hex));
+  const cls = ['chip'];
+  if (opts.active) cls.push('chip-active');
+  if (opts.dim) cls.push('chip-dim');
+  if (opts.reveal && (opts.bit === 0 || opts.bit === 1)) cls.push(`chip-bit${opts.bit}`);
+  const bitTag =
+    opts.reveal && (opts.bit === 0 || opts.bit === 1)
+      ? `<span class="chip-bit" title="secret logical value">=${opts.bit}</span>`
+      : '';
+  return `<span class="${cls.join(' ')}">
+    <span class="chip-name">${esc(name)}</span>${bitTag}
+    <span class="chip-colour colour-${colour}" title="public colour (point-and-permute) bit">${colour}</span>
+    <span class="chip-hex">${shortHex(hex)}</span>
+  </span>`;
+}
+
+function hexBytesLast(hex: string): Uint8Array {
+  // tiny helper: we only need the final byte's parity for the colour bit
+  const last = hex.slice(-2);
+  return new Uint8Array([Number.parseInt(last || '0', 16)]);
+}
+
+function andGateSvg(opts: { aBit?: 0 | 1 | null; bBit?: 0 | 1 | null; lit?: boolean }): string {
+  const a = opts.aBit ?? null;
+  const b = opts.bBit ?? null;
+  const lit = opts.lit ?? false;
+  const wire = (on: boolean) => (on ? 'var(--accent)' : 'var(--border)');
+  const aOn = a !== null;
+  const bOn = b !== null;
+  return `
+  <svg viewBox="0 0 320 160" class="gate-svg" role="img" aria-label="AND gate schematic with inputs A and B and output C">
+    <line x1="10" y1="50" x2="120" y2="50" stroke="${wire(aOn)}" stroke-width="3"/>
+    <line x1="10" y1="110" x2="120" y2="110" stroke="${wire(bOn)}" stroke-width="3"/>
+    <path d="M120 30 H170 A50 50 0 0 1 170 130 H120 Z" fill="var(--surface-alt)" stroke="${lit ? 'var(--success)' : 'var(--accent)'}" stroke-width="3"/>
+    <text x="155" y="86" text-anchor="middle" class="gate-glyph">AND</text>
+    <line x1="220" y1="80" x2="310" y2="80" stroke="${lit ? 'var(--success)' : 'var(--border)'}" stroke-width="3"/>
+    <text x="6" y="42" class="gate-pin">A</text>
+    <text x="6" y="102" class="gate-pin">B</text>
+    <text x="300" y="72" class="gate-pin" text-anchor="end">C</text>
+    <circle cx="65" cy="50" r="11" class="gate-bit ${aOn ? 'gate-bit-on' : ''}"/>
+    <text x="65" y="54" text-anchor="middle" class="gate-bit-txt">${a ?? '?'}</text>
+    <circle cx="65" cy="110" r="11" class="gate-bit ${bOn ? 'gate-bit-on' : ''}"/>
+    <text x="65" y="114" text-anchor="middle" class="gate-bit-txt">${b ?? '?'}</text>
+  </svg>`;
+}
+
+// ── Section scaffold ─────────────────────────────────────────────────────
 
 function sectionTemplate(id: string, title: string, body: string): string {
   const headingId = `${id}-heading`;
@@ -54,13 +121,58 @@ function sectionTemplate(id: string, title: string, body: string): string {
     <section class="section" id="${id}" aria-labelledby="${headingId}">
       <div class="section-head"><h2 id="${headingId}">${title}</h2></div>
       <div class="section-body">${body}</div>
-    </section>
-  `;
+    </section>`;
 }
 
 function formatMoney(value: number): string {
   return `$${value}M`;
 }
+
+// ── Quiz component ───────────────────────────────────────────────────────
+
+interface QuizOption {
+  label: string;
+  correct: boolean;
+  explain: string;
+}
+
+const quizzes: Record<string, QuizOption[]> = {};
+
+function quiz(id: string, prompt: string, options: QuizOption[]): string {
+  quizzes[id] = options;
+  const opts = options
+    .map(
+      (o, i) =>
+        `<button class="quiz-opt" type="button" data-quiz="${id}" data-idx="${i}">${esc(o.label)}</button>`,
+    )
+    .join('');
+  return `
+    <div class="quiz" id="quiz-${id}">
+      <p class="quiz-q"><span class="quiz-tag">Check yourself</span> ${prompt}</p>
+      <div class="quiz-opts">${opts}</div>
+      <div class="quiz-feedback" aria-live="polite"></div>
+    </div>`;
+}
+
+function handleQuizClick(target: HTMLElement): void {
+  const btn = target.closest<HTMLElement>('.quiz-opt');
+  if (!btn) return;
+  const id = btn.dataset.quiz!;
+  const idx = Number.parseInt(btn.dataset.idx!, 10);
+  const options = quizzes[id];
+  const chosen = options[idx];
+  const wrap = q(`#quiz-${id}`);
+  wrap.querySelectorAll<HTMLButtonElement>('.quiz-opt').forEach((b, i) => {
+    b.classList.remove('quiz-correct', 'quiz-wrong');
+    if (options[i].correct) b.classList.add('quiz-correct');
+    if (i === idx && !chosen.correct) b.classList.add('quiz-wrong');
+    b.disabled = false;
+  });
+  const fb = wrap.querySelector<HTMLElement>('.quiz-feedback')!;
+  fb.innerHTML = `<strong class="${chosen.correct ? 'ok' : 'bad'}">${chosen.correct ? 'Correct.' : 'Not quite.'}</strong> ${esc(chosen.explain)}`;
+}
+
+// ── Render ───────────────────────────────────────────────────────────────
 
 function render(): void {
   const app = q('#app');
@@ -70,7 +182,7 @@ function render(): void {
       <div class="container header-grid">
         <div>
           <h1>Garbled Gate</h1>
-          <p class="subtitle">Yao's Garbled Circuits in the browser: gate-by-gate garbling, OT inputs, millionaire comparison.</p>
+          <p class="subtitle">Yao's Garbled Circuits, made visible: watch one gate get garbled, one row unlock, and a whole comparator decide who's richer — without revealing a thing.</p>
         </div>
       </div>
       <div class="container" style="position:relative;">
@@ -80,406 +192,787 @@ function render(): void {
 
     <main role="main" id="main-content">
       <div class="container">
-        ${sectionTemplate(
-          'ex1',
-          'Exhibit 1 - The Millionaire\'s Problem',
-          `
-          <p>Alice has private wealth A and Bob has private wealth B. They need to decide whether A > B without revealing either wealth value. This is Yao's Millionaire's Problem (1982), the motivating case for secure two-party computation.</p>
-          <div class="card-grid">
-            <div class="card">
-              <h3>The Problem</h3>
-              <ul>
-                <li>A trusted third party would solve this instantly, but none exists.</li>
-                <li>Alice cannot send A directly to Bob.</li>
-                <li>Bob cannot send B directly to Alice.</li>
-                <li>Standard encryption alone does not solve private comparison.</li>
-              </ul>
-            </div>
-            <div class="card">
-              <h3>GC Solution Preview</h3>
-              <ul>
-                <li>Alice garbles a comparison circuit for A > B.</li>
-                <li>Bob receives his input labels via Oblivious Transfer.</li>
-                <li>Bob evaluates and learns only output.</li>
-                <li>Alice learns nothing about Bob's input.</li>
-              </ul>
-            </div>
-          </div>
-          <div class="row" style="margin-top:0.8rem;">
-            <div style="flex:1; min-width:210px;">
-              <label for="alice-wealth">Alice wealth: <output id="alice-wealth-val" for="alice-wealth">${formatMoney(40)}</output></label>
-              <input id="alice-wealth" type="range" min="1" max="100" value="40" aria-describedby="alice-wealth-val" />
-            </div>
-            <div style="flex:1; min-width:210px;">
-              <label for="bob-wealth">Bob wealth: <output id="bob-wealth-val" for="bob-wealth">${formatMoney(35)}</output></label>
-              <input id="bob-wealth" type="range" min="1" max="100" value="35" aria-describedby="bob-wealth-val" />
-            </div>
-            <div style="flex:1; min-width:220px;">
-              <button id="solve-millionaire" class="btn" type="button">Solve with Garbled Circuits</button>
-            </div>
-          </div>
-          <div id="millionaire-result" class="status" aria-live="polite">Protocol not run yet.</div>
-          <div class="callout">
-            <strong>Why this matters:</strong> this exact pattern underlies private set intersection, private auctions, secure voting, and private ML inference: compute function output without exposing raw inputs.
-          </div>
-          `,
-        )}
-
-        ${sectionTemplate(
-          'ex2',
-          'Exhibit 2 - What a Garbled Circuit Is (AND gate demo)',
-          `
-          <p>This interactive panel uses a single AND gate as the building block. Labels are real random 128-bit values from <code>crypto.getRandomValues</code>. Rows are encrypted with WebCrypto AES-128-GCM and displayed in shuffled order.</p>
-          <div class="table-wrap" tabindex="0" role="region" aria-label="AND gate truth table">
-          <table class="table">
-            <caption class="sr-only">AND gate truth table</caption>
-            <thead><tr><th scope="col">A</th><th scope="col">B</th><th scope="col">AND(A,B)</th></tr></thead>
-            <tbody>
-              <tr><td>0</td><td>0</td><td>0</td></tr>
-              <tr><td>0</td><td>1</td><td>0</td></tr>
-              <tr><td>1</td><td>0</td><td>0</td></tr>
-              <tr><td>1</td><td>1</td><td>1</td></tr>
-            </tbody>
-          </table>
-          </div>
-          <div class="row" style="margin-top:0.8rem;">
-            <div style="flex:1; min-width:220px;"><button id="garble-and" class="btn" type="button">Garble</button></div>
-            <div style="flex:1; min-width:140px;">
-              <label for="and-a">A bit</label>
-              <select id="and-a"><option value="0">0</option><option value="1">1</option></select>
-            </div>
-            <div style="flex:1; min-width:140px;">
-              <label for="and-b">B bit</label>
-              <select id="and-b"><option value="0">0</option><option value="1">1</option></select>
-            </div>
-            <div style="flex:1; min-width:170px;"><button id="eval-and" class="btn" type="button">Evaluate</button></div>
-            <div style="flex:1; min-width:170px;"><button id="reveal-and" class="btn" type="button">Reveal mapping</button></div>
-          </div>
-          <div id="and-labels" class="status" aria-live="polite">Press Garble to generate wire labels.</div>
-          <div id="and-table" class="status" aria-live="polite">Garbled table not generated.</div>
-          <div id="and-eval" class="status" aria-live="polite">Evaluation pending.</div>
-          <div class="callout">
-            <strong>What Bob learns:</strong> output label and final bit after mapping reveal. Bob does not learn unused labels or the opposite output label.
-          </div>
-          `,
-        )}
-
-        ${sectionTemplate(
-          'ex3',
-          'Exhibit 3 - Oblivious Transfer for Input Wires',
-          `
-          <p>OT delivers exactly one Bob input-wire label to Bob while hiding Bob's bit from Alice. This is the same 1-of-2 OT setting used in <a href="https://systemslibrarian.github.io/crypto-lab-ot-gate/" target="_blank" rel="noopener">OT Gate</a>, grounded in Chou-Orlandi (LATINCRYPT 2015).</p>
-          <div class="row">
-            <div style="flex:1; min-width:200px;">
-              <label for="ot-choice">Bob choice bit</label>
-              <select id="ot-choice"><option value="0">0</option><option value="1">1</option></select>
-            </div>
-            <div style="flex:1; min-width:220px;"><button id="run-ot" class="btn" type="button">Run OT</button></div>
-          </div>
-          <div id="ot-inputs" class="status" aria-live="polite">Messages W_B0 / W_B1 will appear after run.</div>
-          <div id="ot-steps" class="status" aria-live="polite">No OT run yet.</div>
-          <div class="card-grid" style="margin-top:0.8rem;">
-            <div class="card"><strong>Locked box 0:</strong><div id="box0" aria-live="polite">Locked</div></div>
-            <div class="card"><strong>Locked box 1:</strong><div id="box1" aria-live="polite">Locked</div></div>
-          </div>
-          <div class="callout">
-            <strong>Per-input-bit OT:</strong> one OT per Bob input bit. A 7-bit input uses 7 OTs. OT count grows linearly with Bob's input length.
-          </div>
-          `,
-        )}
-
-        ${sectionTemplate(
-          'ex4',
-          'Exhibit 4 - Full Protocol End to End (simplified 3-bit)',
-          `
-          <p><strong>Simplified 3-bit comparison:</strong> this panel demonstrates the exact protocol structure used for larger comparisons, with fewer gates for browser clarity.</p>
-          <div class="row">
-            <div style="flex:1; min-width:190px;">
-              <label for="full-alice">Alice value (1-7)</label>
-              <input id="full-alice" type="range" min="1" max="7" value="5" aria-valuemin="1" aria-valuemax="7" aria-valuenow="5" aria-describedby="full-alice-val" />
-              <output id="full-alice-val" for="full-alice">5</output>
-            </div>
-            <div style="flex:1; min-width:190px;">
-              <label for="full-bob">Bob value (1-7)</label>
-              <input id="full-bob" type="range" min="1" max="7" value="3" aria-valuemin="1" aria-valuemax="7" aria-valuenow="3" aria-describedby="full-bob-val" />
-              <output id="full-bob-val" for="full-bob">3</output>
-            </div>
-            <div style="flex:1; min-width:220px;"><button id="run-full" class="btn" type="button">Run Full Protocol</button></div>
-          </div>
-          <div id="full-steps" class="status" aria-live="polite">Run to see all seven protocol steps.</div>
-          <div id="full-result" class="status" aria-live="polite">Final output hidden.</div>
-          <div class="callout">
-            <strong>Learning outcome:</strong> both parties learn only who is richer (or equal), not each other's actual value.
-          </div>
-          `,
-        )}
-
-        ${sectionTemplate(
-          'ex5',
-          'Exhibit 5 - Security and Efficiency',
-          `
-          <div class="card-grid">
-            <div class="card">
-              <h3>Security model</h3>
-              <ul>
-                <li>Semi-honest security for baseline Yao protocol.</li>
-                <li>Malicious security needs cut-and-choose and authenticated checks.</li>
-                <li>Point-and-permute hides gate-row semantics.</li>
-                <li>Free XOR removes ciphertext cost for XOR gates.</li>
-              </ul>
-            </div>
-            <div class="card">
-              <h3>Efficiency</h3>
-              <ul>
-                <li>Classic table: 4 ciphertext rows per AND/OR gate.</li>
-                <li>Half Gates can reduce AND cost to 2 ciphertexts.</li>
-                <li>Row reduction can reduce 4 to 3 rows.</li>
-                <li>OT count = Bob input bits.</li>
-              </ul>
-            </div>
-          </div>
-          <div class="table-wrap" tabindex="0" role="region" aria-label="MPC protocol comparison table">
-          <table class="table" style="margin-top:0.8rem;">
-            <caption class="sr-only">Comparison of MPC approaches</caption>
-            <thead>
-              <tr><th scope="col">Property</th><th scope="col">Garbled Circuits</th><th scope="col">Secret Sharing MPC</th><th scope="col">FHE-based MPC</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>Function type</td><td>Any boolean</td><td>Any arithmetic</td><td>Any</td></tr>
-              <tr><td>Rounds</td><td>Constant (2)</td><td>O(depth)</td><td>Constant</td></tr>
-              <tr><td>Communication</td><td>O(circuit size)</td><td>O(parties x depth)</td><td>O(1) messages</td></tr>
-              <tr><td>Computational cost</td><td>Moderate</td><td>Low per gate</td><td>Very high</td></tr>
-              <tr><td>Semi-honest secure</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
-              <tr><td>Practical for</td><td>2-party</td><td>Multi-party</td><td>Research</td></tr>
-            </tbody>
-          </table>
-          </div>
-          <div id="efficiency-live" class="status" aria-live="polite">Run Exhibit 4 to compute actual byte counts for this demo circuit.</div>
-          <div class="callout">
-            <strong>Why this matters:</strong> Garbled circuits are the longest-running general MPC paradigm, with modern optimizations enabling practical deployments.
-          </div>
-          `,
-        )}
-
-        ${sectionTemplate(
-          'ex6',
-          'Exhibit 6 - Garbled Circuits in Production',
-          `
-          <div class="card-grid">
-            <div class="card"><h3>Private Set Intersection</h3><p>PSI finds set overlap without revealing non-overlapping elements. OT extension underpins practical PSI systems for private contact discovery and measurement.</p></div>
-            <div class="card"><h3>Secure ML Inference</h3><p>GC evaluates private-model inference for small circuits. Practical today for smaller models, not yet for large transformer-scale circuits.</p></div>
-            <div class="card"><h3>Private Auctions</h3><p>Sealed-bid workflows can reveal only winner and final price while hiding losing bids.</p></div>
-            <div class="card"><h3>Threshold Cryptography</h3><p>OT-derived techniques from GC literature appear in threshold ECDSA families such as GG20.</p></div>
-          </div>
-          <div class="family-tree" role="img" aria-label="MPC protocol family tree showing lineage from Yao 1986 to ABY 2015" style="margin-top:0.8rem;">Yao's Garbled Circuits (1986) - general 2-party
-|- GMW protocol (1987) - multi-party extension
-|- BGW protocol (1988) - information-theoretic MPC
-|- SPDZ (2012) - malicious-secure multi-party
-|- ABY (2015) - mixed Arithmetic/Boolean/Yao protocols</div>
-          <nav aria-label="Cross-demo links" class="status" style="margin-top:0.8rem;">
-            Cross-demo links:
-            <ul>
-              <li><a href="https://systemslibrarian.github.io/crypto-lab-ot-gate/" target="_blank" rel="noopener">OT Gate (1-of-2 OT)</a></li>
-              <li><a href="https://systemslibrarian.github.io/crypto-lab-silent-tally/" target="_blank" rel="noopener">Silent Tally (additive MPC)</a></li>
-              <li><a href="https://systemslibrarian.github.io/crypto-lab-oblivious-shelf/" target="_blank" rel="noopener">Oblivious Shelf (PIR)</a></li>
-              <li><a href="https://systemslibrarian.github.io/crypto-compare/" target="_blank" rel="noopener">Crypto Compare reference</a></li>
-            </ul>
-          </nav>
-          `,
-        )}
-
-        <section class="section" aria-labelledby="refs-heading">
-          <div class="section-head"><h2 id="refs-heading">References</h2></div>
-          <div class="section-body">
-            <ul>
-              <li>Andrew C. Yao, How to Generate and Exchange Secrets, FOCS 1986.</li>
-              <li>Mihir Bellare, Viet Tung Hoang, Phillip Rogaway, Foundations of Garbled Circuits, CCS 2012.</li>
-              <li>Tung Chou, Claudio Orlandi, The Simplest Protocol for Oblivious Transfer, LATINCRYPT 2015.</li>
-            </ul>
-          </div>
-        </section>
+        ${navStrip()}
+        ${exhibit1()}
+        ${exhibit2()}
+        ${exhibit3()}
+        ${exhibit4()}
+        ${exhibit5()}
+        ${exhibit6()}
+        ${notesAndRefs()}
       </div>
-    </main>
-  `;
+    </main>`;
 
   wireEvents();
   setupThemeToggle();
+  renderAndStage();
+  renderCircuitStage();
+}
+
+function navStrip(): string {
+  const items = [
+    ['ex1', "1 · Millionaire's Problem"],
+    ['ex2', '2 · One garbled gate'],
+    ['ex3', '3 · Oblivious Transfer'],
+    ['ex4', '4 · Full circuit'],
+    ['ex5', '5 · Security & cost'],
+    ['ex6', '6 · In production'],
+  ];
+  return `<nav class="toc" aria-label="Exhibits">
+    ${items.map(([id, t]) => `<a href="#${id}">${esc(t)}</a>`).join('')}
+  </nav>`;
+}
+
+function exhibit1(): string {
+  return sectionTemplate(
+    'ex1',
+    "Exhibit 1 — The Millionaire's Problem",
+    `
+    <p>Alice has private wealth <em>A</em>, Bob has private wealth <em>B</em>. They want to learn whether <strong>A &gt; B</strong> — and nothing else. No trusted third party, no revealing the numbers. This is Yao's Millionaire's Problem (1982), the spark for all of secure two-party computation.</p>
+    <div class="card-grid">
+      <div class="card">
+        <h3>Why it's hard</h3>
+        <ul>
+          <li>A trusted referee would settle it instantly — but there isn't one.</li>
+          <li>If Alice sends <em>A</em>, Bob learns it. Same in reverse.</li>
+          <li>Ordinary encryption hides data <em>in transit</em>; it can't <em>compute</em> on hidden inputs.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>The garbled-circuit answer</h3>
+        <ul>
+          <li>Alice turns "is A &gt; B?" into a boolean circuit and <em>garbles</em> it.</li>
+          <li>Bob gets his input as scrambled labels via Oblivious Transfer.</li>
+          <li>Bob runs the circuit blind and learns only the verdict.</li>
+          <li>Alice learns nothing about <em>B</em>.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="row" style="margin-top:0.8rem;">
+      <div style="flex:1; min-width:210px;">
+        <label for="alice-wealth">Alice's wealth: <output id="alice-wealth-val" for="alice-wealth">${formatMoney(40)}</output></label>
+        <input id="alice-wealth" type="range" min="1" max="100" value="40" aria-describedby="alice-wealth-val" />
+      </div>
+      <div style="flex:1; min-width:210px;">
+        <label for="bob-wealth">Bob's wealth: <output id="bob-wealth-val" for="bob-wealth">${formatMoney(35)}</output></label>
+        <input id="bob-wealth" type="range" min="1" max="100" value="35" aria-describedby="bob-wealth-val" />
+      </div>
+      <div style="flex:1; min-width:220px; align-self:flex-end;">
+        <button id="solve-millionaire" class="btn btn-primary" type="button">Solve privately →</button>
+      </div>
+    </div>
+    <div id="millionaire-result" class="status" aria-live="polite">Set two amounts and run the protocol. Only the verdict comes out the other side.</div>
+    <div class="callout">
+      <strong>The big idea:</strong> compute a function's <em>output</em> without exposing its <em>inputs</em>. The same trick powers private set intersection, sealed-bid auctions, private contact discovery, and privacy-preserving ML.
+    </div>
+    ${quiz('m1', 'After the protocol runs, what does Bob learn about Alice\'s exact wealth?', [
+      { label: 'Her exact dollar amount', correct: false, explain: 'No — the whole point is that the inputs never leave each party. Bob only sees scrambled labels.' },
+      { label: 'Only whether A > B (or =)', correct: true, explain: 'Right. The output wire reveals just the comparison verdict; the inputs stay hidden inside random labels.' },
+      { label: 'Nothing at all', correct: false, explain: 'He does learn the agreed output — the verdict — just not the inputs behind it.' },
+    ])}`,
+  );
+}
+
+function exhibit2(): string {
+  return sectionTemplate(
+    'ex2',
+    'Exhibit 2 — Anatomy of one garbled gate',
+    `
+    <p>Strip the protocol down to a single <strong>AND</strong> gate. The garbler (Alice) replaces every wire value with a random 128-bit <em>label</em>, then encrypts the gate's truth table so each row can only be opened with the right pair of input labels. The evaluator (Bob) ends up holding one output <em>label</em> — and still doesn't know the bit it stands for.</p>
+
+    <div class="legend">
+      <span class="legend-item"><span class="chip chip-mini"><span class="chip-colour colour-1">1</span></span> public <strong>colour</strong> bit — random, leaks nothing</span>
+      <span class="legend-item"><span class="chip chip-mini chip-bit1"><span class="chip-bit">=1</span></span> secret <strong>logical</strong> bit (hidden from Bob)</span>
+      <span class="legend-item"><span class="lock lock-open lock-mini">🔓</span> row Bob can open</span>
+      <span class="legend-item"><span class="lock lock-mini">🔒</span> row that stays shut</span>
+    </div>
+
+    <div class="stepper" role="group" aria-label="Garbled gate controls">
+      <button id="garble-and" class="btn btn-primary" type="button">1 · Garble the gate</button>
+      <div class="step-inputs">
+        <label for="and-a">Bob's A</label>
+        <select id="and-a"><option value="0">0</option><option value="1">1</option></select>
+      </div>
+      <div class="step-inputs">
+        <label for="and-b">Bob's B</label>
+        <select id="and-b"><option value="0">0</option><option value="1">1</option></select>
+      </div>
+      <button id="eval-and" class="btn" type="button">2 · Evaluate</button>
+      <button id="reveal-and" class="btn" type="button">3 · Reveal output bit</button>
+      <button id="trial-and" class="btn btn-ghost" type="button">Why only one row?</button>
+    </div>
+
+    <div id="and-stage"></div>
+
+    <div class="callout callout-info">
+      <strong>Point-and-permute:</strong> each label carries a public "colour" bit that is decoupled from its secret logical value. Bob reads the two colour bits off his active labels, jumps straight to that one row, and decrypts it. No trial-and-error, no leak — the colour bits are random.
+    </div>
+    ${quiz('g1', 'Bob holds the output label after evaluating. Can he tell whether it means 0 or 1?', [
+      { label: 'Yes, labels are readable', correct: false, explain: 'A label is 16 random bytes. Without the mapping it is indistinguishable from noise.' },
+      { label: 'No — not until Alice reveals the output mapping', correct: true, explain: 'Exactly. Bob carries an opaque label; only the final output-wire mapping turns it into a bit.' },
+      { label: 'Only if the bit is 1', correct: false, explain: 'Both labels look equally random; neither value is distinguishable on its own.' },
+    ])}`,
+  );
+}
+
+function exhibit3(): string {
+  return sectionTemplate(
+    'ex3',
+    'Exhibit 3 — Oblivious Transfer for Bob\'s inputs',
+    `
+    <p>Bob needs the label for <em>his</em> bit on each input wire — but Alice must not learn which one he took, and Bob must not see the other. 1-of-2 <strong>Oblivious Transfer</strong> delivers exactly that, here via Chou–Orlandi (LATINCRYPT 2015) on Curve25519. Same machinery as <a href="https://systemslibrarian.github.io/crypto-lab-ot-gate/" target="_blank" rel="noopener">OT Gate</a>.</p>
+    <div class="row">
+      <div style="flex:1; min-width:200px;">
+        <label for="ot-choice">Bob's choice bit</label>
+        <select id="ot-choice"><option value="0">0</option><option value="1">1</option></select>
+      </div>
+      <div style="flex:1; min-width:220px; align-self:flex-end;"><button id="run-ot" class="btn btn-primary" type="button">Run one OT</button></div>
+    </div>
+    <div class="ot-boxes">
+      <div class="ot-box" id="box0"><div class="ot-box-top">Wire-label for bit&nbsp;0</div><div class="ot-box-body lock">🔒 locked</div></div>
+      <div class="ot-box" id="box1"><div class="ot-box-top">Wire-label for bit&nbsp;1</div><div class="ot-box-body lock">🔒 locked</div></div>
+    </div>
+    <div id="ot-steps" class="status" aria-live="polite">Pick a choice bit and run. Exactly one box opens; Alice can't tell which.</div>
+    <div class="callout">
+      <strong>One OT per Bob input bit.</strong> A 3-bit value needs 3 OTs; OT count grows linearly with Bob's input length, independent of circuit size. (Real systems amortise this with OT extension.)
+    </div>
+    ${quiz('o1', 'After the OT, what does Alice know about Bob\'s choice bit?', [
+      { label: 'She learns it exactly', correct: false, explain: 'No — Bob\'s message B looks the same to Alice for choice 0 or 1. That hiding is the point of OT.' },
+      { label: 'Nothing', correct: true, explain: 'Correct. Alice sends both ciphertexts; Bob can only derive the key for the one he chose, and Alice can\'t tell which.' },
+      { label: 'A 50/50 guess that improves over time', correct: false, explain: 'Each OT is independently hiding; repetition doesn\'t leak the choice.' },
+    ])}`,
+  );
+}
+
+function exhibit4(): string {
+  return sectionTemplate(
+    'ex4',
+    'Exhibit 4 — The full protocol, gate by gate',
+    `
+    <p>Now the real thing: a public 3-bit comparator wired from XOR / AND / OR gates. Set both values, run the setup, then <strong>step through evaluation</strong> and watch labels propagate. Toggle <strong>God view</strong> to see the secret bit on every wire — the view Bob never has.</p>
+    <div class="row">
+      <div style="flex:1; min-width:180px;">
+        <label for="full-alice">Alice (1–7): <output id="full-alice-val" for="full-alice">5</output></label>
+        <input id="full-alice" type="range" min="1" max="7" value="5" aria-describedby="full-alice-val" />
+      </div>
+      <div style="flex:1; min-width:180px;">
+        <label for="full-bob">Bob (1–7): <output id="full-bob-val" for="full-bob">3</output></label>
+        <input id="full-bob" type="range" min="1" max="7" value="3" aria-describedby="full-bob-val" />
+      </div>
+      <div style="flex:1; min-width:160px; align-self:flex-end;"><button id="run-full" class="btn btn-primary" type="button">Set up & garble</button></div>
+    </div>
+    <div class="stepper" role="group" aria-label="Circuit walkthrough controls">
+      <button id="proto-step" class="btn" type="button" disabled>Step ▶</button>
+      <button id="proto-auto" class="btn" type="button" disabled>Auto-play</button>
+      <button id="proto-reset" class="btn btn-ghost" type="button" disabled>Reset run</button>
+      <label class="switch"><input type="checkbox" id="god-view" /> <span>God view (reveal wire bits)</span></label>
+    </div>
+    <div id="proto-checklist" class="status" aria-live="polite">Press “Set up &amp; garble” to begin.</div>
+    <div id="circuit-stage" class="circuit-wrap" tabindex="0" role="region" aria-label="Comparator circuit diagram"></div>
+    <div id="proto-meter" class="meter-grid"></div>
+    <div id="full-result" class="status" aria-live="polite">Verdict hidden until evaluation reaches the output wires.</div>
+    <div class="callout">
+      <strong>Constant rounds:</strong> garbling and OT happen up front, then Bob evaluates the whole circuit locally. Communication is one big batch — depth doesn't add round-trips. That's the signature property of garbled circuits.
+    </div>`,
+  );
+}
+
+function exhibit5(): string {
+  return sectionTemplate(
+    'ex5',
+    'Exhibit 5 — Security model & the cost of privacy',
+    `
+    <div class="card-grid">
+      <div class="card">
+        <h3>What's guaranteed</h3>
+        <ul>
+          <li><strong>Semi-honest</strong> security: safe if both follow the protocol.</li>
+          <li>Bob sees only labels + one output mapping → learns just the result.</li>
+          <li>Point-and-permute hides which row corresponds to which inputs.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>What it doesn't cover (by default)</h3>
+        <ul>
+          <li><strong>Malicious</strong> parties need cut-and-choose or authenticated garbling — real overhead.</li>
+          <li>A garbled circuit is <strong>single-use</strong>: reusing labels breaks privacy.</li>
+          <li>&gt;2 parties → GMW / BGW / SPDZ territory.</li>
+        </ul>
+      </div>
+    </div>
+    <h3 style="margin-top:1rem;">Optimisations that made it practical</h3>
+    <div class="card-grid">
+      <div class="card"><strong>Free XOR</strong><p>Pick labels so every wire's pair differs by a global Δ. XOR gates become a local XOR of labels — zero ciphertext, zero crypto. This demo uses it.</p></div>
+      <div class="card"><strong>Row reduction</strong><p>Fix one row to a known value and omit it: 4 → 3 ciphertexts per AND/OR.</p></div>
+      <div class="card"><strong>Half Gates</strong><p>Zahur–Rosulek–Evans (2015): every AND gate costs just <strong>2</strong> ciphertexts — long the standard.</p></div>
+    </div>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="MPC approach comparison">
+    <table class="table" style="margin-top:0.8rem;">
+      <caption class="sr-only">Comparison of MPC approaches</caption>
+      <thead><tr><th scope="col">Property</th><th scope="col">Garbled Circuits</th><th scope="col">Secret-sharing MPC</th><th scope="col">FHE</th></tr></thead>
+      <tbody>
+        <tr><td>Best for</td><td>Boolean, 2-party</td><td>Arithmetic, multi-party</td><td>Outsourced compute</td></tr>
+        <tr><td>Rounds</td><td>Constant (≈2)</td><td>O(circuit depth)</td><td>Constant</td></tr>
+        <tr><td>Communication</td><td>O(circuit size)</td><td>O(parties × depth)</td><td>O(1) messages, big ciphertexts</td></tr>
+        <tr><td>Compute cost</td><td>Moderate</td><td>Low per gate</td><td>Very high</td></tr>
+        <tr><td>Maturity</td><td>Deployed</td><td>Deployed</td><td>Emerging</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div id="efficiency-live" class="status" aria-live="polite">Run Exhibit 4 to measure this circuit's real garbled-payload size and how many bytes Free XOR saved.</div>
+    ${quiz('s1', 'Why must a garbled circuit never be evaluated twice with the same labels?', [
+      { label: 'It would be too slow', correct: false, explain: 'Speed isn\'t the issue — reuse is a security failure, not a performance one.' },
+      { label: 'Reusing labels can leak input bits', correct: true, explain: 'Right. Seeing which rows decrypt across two runs lets the evaluator correlate labels to logical values. Each circuit is single-use.' },
+      { label: 'The AES key expires', correct: false, explain: 'There\'s no expiry; the problem is correlation across reuse of the same wire labels.' },
+    ])}`,
+  );
+}
+
+function exhibit6(): string {
+  return sectionTemplate(
+    'ex6',
+    'Exhibit 6 — Garbled circuits in production',
+    `
+    <div class="card-grid">
+      <div class="card"><h3>Private Set Intersection</h3><p>Find shared contacts/measurements without revealing the rest. OT-extension-based PSI underlies private contact discovery at scale.</p></div>
+      <div class="card"><h3>Secure ML inference</h3><p>Evaluate a model on private inputs for modest circuits; combined with secret sharing in mixed protocols for larger nets.</p></div>
+      <div class="card"><h3>Sealed-bid auctions</h3><p>Reveal only the winner and clearing price; losing bids stay sealed.</p></div>
+      <div class="card"><h3>Threshold signatures</h3><p>OT techniques from the GC line appear in threshold-ECDSA families such as GG20.</p></div>
+    </div>
+    <div class="family-tree" role="img" aria-label="MPC protocol family tree from Yao 1986 to ABY 2015" style="margin-top:0.8rem;">Yao's Garbled Circuits (1986) — general 2-party
+├─ GMW (1987) — multi-party from OT
+├─ BGW (1988) — information-theoretic MPC
+├─ SPDZ (2012) — malicious-secure, dishonest majority
+└─ ABY (2015) — mix Arithmetic / Boolean / Yao</div>
+    <nav aria-label="Related demos" class="status" style="margin-top:0.8rem;">
+      Continue across the Crypto-Lab suite:
+      <ul>
+        <li><a href="https://systemslibrarian.github.io/crypto-lab-ot-gate/" target="_blank" rel="noopener">OT Gate</a> — the 1-of-2 OT used here, in depth.</li>
+        <li><a href="https://systemslibrarian.github.io/crypto-lab-silent-tally/" target="_blank" rel="noopener">Silent Tally</a> — additive secret-sharing MPC.</li>
+        <li><a href="https://systemslibrarian.github.io/crypto-lab-oblivious-shelf/" target="_blank" rel="noopener">Oblivious Shelf</a> — private information retrieval.</li>
+        <li><a href="https://systemslibrarian.github.io/crypto-compare/" target="_blank" rel="noopener">Crypto Compare</a> — the reference index.</li>
+      </ul>
+    </nav>`,
+  );
+}
+
+function notesAndRefs(): string {
+  return `
+    <section class="section" aria-labelledby="notes-heading">
+      <div class="section-head"><h2 id="notes-heading">Honest implementation notes</h2></div>
+      <div class="section-body">
+        <p>This demo runs <strong>real cryptography</strong> in your browser — but it is a teaching model. Where it simplifies, it says so:</p>
+        <ul>
+          <li><strong>Gate encryption.</strong> Each row is encrypted under a single key <code>H(A‖B‖gateId)</code> with AES-128-GCM, rather than the textbook double-encryption <code>Enc<sub>A</sub>(Enc<sub>B</sub>(out))</code>. Both bind a row to a pair of input labels; the hash form is closer to modern hash-based garbling and keeps the visual to one padlock per row.</li>
+          <li><strong>GCM as the “did it open?” signal.</strong> The authentication tag is what makes a wrong-key decryption fail cleanly — handy for the “why only one row opens” view. Production garbling uses point-and-permute so it never trial-decrypts at all.</li>
+          <li><strong>Free XOR</strong> is implemented for real (global Δ with forced-1 lsb); XOR gates cost zero ciphertext. Half Gates and row reduction are described, not implemented.</li>
+          <li><strong>OT</strong> is genuine Chou–Orlandi on Curve25519 via <code>@noble/curves</code>. One standalone OT per input bit — no OT extension.</li>
+          <li><strong>Security model is semi-honest.</strong> No cut-and-choose; don't guard real secrets with this code.</li>
+          <li>The "God view" exists only because we control both parties here. In a real run, Bob has labels, never bits.</li>
+        </ul>
+        <h2 id="refs-heading" style="margin-top:1rem;">References</h2>
+        <ul>
+          <li>A. C. Yao, <em>How to Generate and Exchange Secrets</em>, FOCS 1986.</li>
+          <li>M. Bellare, V. T. Hoang, P. Rogaway, <em>Foundations of Garbled Circuits</em>, CCS 2012.</li>
+          <li>V. Kolesnikov, T. Schneider, <em>Improved Garbled Circuit: Free XOR Gates and Applications</em>, ICALP 2008.</li>
+          <li>S. Zahur, M. Rosulek, D. Evans, <em>Two Halves Make a Whole (Half Gates)</em>, EUROCRYPT 2015.</li>
+          <li>T. Chou, C. Orlandi, <em>The Simplest Protocol for Oblivious Transfer</em>, LATINCRYPT 2015.</li>
+        </ul>
+      </div>
+    </section>`;
+}
+
+// ── AND gate stage rendering ─────────────────────────────────────────────
+
+function renderAndStage(): void {
+  const stage = maybe('#and-stage');
+  if (!stage) return;
+  const d = state.andDemo;
+  if (!d) {
+    stage.innerHTML = `<div class="empty-stage">Press <strong>Garble the gate</strong> to mint random wire labels and lock the truth table.</div>`;
+    return;
+  }
+
+  const ev = state.andEval;
+  const aBit = ev ? ev.aBit : null;
+  const bBit = ev ? ev.bBit : null;
+  const lit = !!(ev && ev.decryptOk);
+
+  // Wire-label panel: the six labels Alice generated.
+  const wires = `
+    <div class="wire-panel">
+      <div class="wire-col">
+        <div class="wire-col-h">Wire A</div>
+        ${labelChip('A⁰', bytesToHex(d.wireA.zero), { bit: 0, reveal: true, active: aBit === 0, dim: aBit === 1 })}
+        ${labelChip('A¹', bytesToHex(d.wireA.one), { bit: 1, reveal: true, active: aBit === 1, dim: aBit === 0 })}
+      </div>
+      <div class="wire-col">
+        <div class="wire-col-h">Wire B</div>
+        ${labelChip('B⁰', bytesToHex(d.wireB.zero), { bit: 0, reveal: true, active: bBit === 0, dim: bBit === 1 })}
+        ${labelChip('B¹', bytesToHex(d.wireB.one), { bit: 1, reveal: true, active: bBit === 1, dim: bBit === 0 })}
+      </div>
+      <div class="wire-col">
+        <div class="wire-col-h">Wire C (output)</div>
+        ${labelChip('C⁰', bytesToHex(d.wireOut.zero), { bit: 0, reveal: ev?.outputBit === 0 })}
+        ${labelChip('C¹', bytesToHex(d.wireOut.one), { bit: 1, reveal: ev?.outputBit === 1 })}
+      </div>
+    </div>`;
+
+  // Garbled table: four padlocked rows.
+  const rows = d.rows
+    .map((r) => {
+      let lockState = 'locked';
+      let icon = '🔒';
+      let note = '';
+      if (ev) {
+        if (r.slot === ev.slot) {
+          lockState = 'open';
+          icon = '🔓';
+          note = 'colour bits match → Bob opens this one';
+        } else {
+          lockState = state.andTrial ? 'dead' : 'dim';
+          icon = '🔒';
+          note = state.andTrial ? 'wrong key — GCM rejects' : '';
+        }
+      }
+      const colourDots = `<span class="chip-colour colour-${r.selectBits[0]}">${r.selectBits[0]}</span><span class="chip-colour colour-${r.selectBits[1]}">${r.selectBits[1]}</span>`;
+      return `<div class="lock-row lock-${lockState}">
+        <span class="lock">${icon}</span>
+        <span class="lock-slot">slot ${r.slot}</span>
+        <span class="lock-colours" title="point-and-permute colour bits">${colourDots}</span>
+        <span class="lock-ct">ct ${shortHex(r.cipherHex, 6, 4)}</span>
+        ${lockState === 'open' && ev?.outputLabelHex ? `<span class="lock-out">→ ${shortHex(ev.outputLabelHex)}</span>` : ''}
+        ${note ? `<span class="lock-note">${note}</span>` : ''}
+      </div>`;
+    })
+    .join('');
+
+  // Narration line that tracks the current step.
+  let narrate = '<strong>Garbled.</strong> Four encrypted rows, shuffled by their colour bits. Pick A and B, then evaluate.';
+  if (ev) {
+    const out =
+      ev.outputBit === null
+        ? `an <em>opaque</em> output label <code>${shortHex(ev.outputLabelHex)}</code> — Bob can't read the bit yet`
+        : `output bit <strong>${ev.outputBit}</strong> (after Alice reveals the C mapping)`;
+    narrate = `Bob's labels are <strong>A${ev.aBit}</strong> and <strong>B${ev.bBit}</strong> with colour bits <strong>${ev.selectBits[0]}${ev.selectBits[1]}</strong> → row <strong>slot ${ev.slot}</strong>. He decrypts it and gets ${out}.`;
+  }
+
+  const trial = state.andTrial
+    ? `<div class="trial-strip">${state.andTrial
+        .map(
+          (t) =>
+            `<span class="trial-cell ${t.ok ? 'trial-ok' : 'trial-fail'}">slot ${t.slot}: ${t.ok ? 'opens ✓' : 'GCM rejects ✗'}</span>`,
+        )
+        .join('')}<span class="trial-caption">Trial-decrypting all four rows: exactly one authenticates. Point-and-permute lets Bob skip straight to it.</span></div>`
+    : '';
+
+  stage.innerHTML = `
+    <div class="and-grid">
+      <div class="and-diagram">${andGateSvg({ aBit, bBit, lit })}</div>
+      ${wires}
+    </div>
+    <div class="lock-table" role="table" aria-label="Garbled AND table">${rows}</div>
+    <div class="status stage-narrate" aria-live="polite">${narrate}</div>
+    ${trial}`;
+}
+
+// ── Circuit stage rendering (Exhibit 4) ──────────────────────────────────
+
+interface NodePos {
+  wire: string;
+  x: number;
+  y: number;
+  kind: string;
+  gate?: boolean;
+  type?: string;
+}
+
+function layoutPositions(layout: CircuitLayout): { nodes: Record<string, NodePos>; width: number; height: number } {
+  const colW = 140;
+  const rowH = 50;
+  const padX = 60;
+  const padY = 34;
+
+  // group wire names by level
+  const byLevel: Record<number, string[]> = {};
+  for (const w of Object.values(layout.wires)) {
+    (byLevel[w.level] ||= []).push(w.name);
+  }
+  // stable order within a level
+  const order = (n: string) => {
+    const pref = n[0];
+    return `${'aboe'.indexOf(pref)}${n}`;
+  };
+  const nodes: Record<string, NodePos> = {};
+  let maxRows = 0;
+  const gateByOut: Record<string, { type: string }> = {};
+  for (const g of layout.gates) gateByOut[g.out] = { type: g.type };
+
+  for (const [lvlStr, names] of Object.entries(byLevel)) {
+    const lvl = Number(lvlStr);
+    names.sort((a, b) => order(a).localeCompare(order(b)));
+    maxRows = Math.max(maxRows, names.length);
+    names.forEach((name, i) => {
+      nodes[name] = {
+        wire: name,
+        x: padX + lvl * colW,
+        y: padY + i * rowH + (lvl % 2) * (rowH / 2),
+        kind: layout.wires[name].kind,
+        gate: !!gateByOut[name],
+        type: gateByOut[name]?.type,
+      };
+    });
+  }
+  const width = padX * 2 + layout.depth * colW + 40;
+  const height = padY * 2 + maxRows * rowH;
+  return { nodes, width, height };
+}
+
+function renderCircuitStage(): void {
+  const stage = maybe('#circuit-stage');
+  if (!stage) return;
+  const p = state.protocol;
+  if (!p) {
+    stage.innerHTML = `<div class="empty-stage">Garble the circuit to render it. Then step through evaluation gate by gate.</div>`;
+    return;
+  }
+  const { nodes, width, height } = layoutPositions(p.layout);
+  const evaluated = new Set(p.gateTrace.slice(0, state.protoStep).map((g) => g.out));
+  const god = state.godView;
+
+  const wireBitOf = (wire: string): 0 | 1 | undefined => {
+    const isInput = ['aliceIn', 'bobIn', 'const'].includes(p.layout.wires[wire]?.kind);
+    if (isInput || evaluated.has(wire)) return p.wireBits[wire];
+    return undefined;
+  };
+
+  // edges
+  const edges = p.layout.gates
+    .map((g) => {
+      const dst = nodes[g.out];
+      return [g.inA, g.inB]
+        .map((src) => {
+          const s = nodes[src];
+          if (!s || !dst) return '';
+          const known = evaluated.has(g.out);
+          const bit = wireBitOf(src);
+          let stroke = 'var(--border)';
+          let w = 2;
+          if (known) {
+            w = 3;
+            stroke = god && bit !== undefined ? (bit === 1 ? 'var(--bit1)' : 'var(--bit0)') : 'var(--success)';
+          }
+          const midX = (s.x + 46 + dst.x) / 2;
+          return `<path d="M ${s.x + 46} ${s.y} C ${midX} ${s.y}, ${midX} ${dst.y}, ${dst.x} ${dst.y}" fill="none" stroke="${stroke}" stroke-width="${w}" opacity="${known ? 1 : 0.5}"/>`;
+        })
+        .join('');
+    })
+    .join('');
+
+  // nodes
+  const nodeSvg = Object.values(nodes)
+    .map((n) => {
+      const bit = wireBitOf(n.wire);
+      const isInput = !n.gate;
+      const evaluatedNode = n.gate ? evaluated.has(n.wire) : true;
+      const isOutput = p.layout.outputs.includes(n.wire);
+      const cls = ['cnode'];
+      if (isInput) cls.push(n.kind === 'aliceIn' ? 'cnode-alice' : n.kind === 'bobIn' ? 'cnode-bob' : 'cnode-const');
+      else cls.push(n.type === 'XOR' ? 'cnode-xor' : 'cnode-gate');
+      if (evaluatedNode) cls.push('cnode-on');
+      if (isOutput) cls.push('cnode-out');
+      const label = isInput ? n.wire : n.type;
+      const bitBadge =
+        god && bit !== undefined
+          ? `<text x="${n.x + 46}" y="${n.y - 11}" text-anchor="middle" class="cnode-bit bit-${bit}">${bit}</text>`
+          : '';
+      const sub = n.gate && !isInput ? `<text x="${n.x + 46}" y="${n.y + 14}" text-anchor="middle" class="cnode-sub">${n.wire}</text>` : '';
+      return `<g class="${cls.join(' ')}">
+        <rect x="${n.x}" y="${n.y - 13}" width="92" height="${sub ? 30 : 26}" rx="7"/>
+        <text x="${n.x + 46}" y="${n.y + (sub ? -1 : 4)}" text-anchor="middle" class="cnode-label">${label}</text>
+        ${sub}${bitBadge}
+      </g>`;
+    })
+    .join('');
+
+  stage.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" class="circuit-svg" role="img" aria-label="3-bit comparator circuit, ${state.protoStep} of ${p.gateCount} gates evaluated">
+      ${edges}${nodeSvg}
+    </svg>
+    <div class="circuit-legend">
+      <span class="legend-item"><span class="swatch cnode-alice"></span>Alice input</span>
+      <span class="legend-item"><span class="swatch cnode-bob"></span>Bob input (via OT)</span>
+      <span class="legend-item"><span class="swatch cnode-xor"></span>XOR — free</span>
+      <span class="legend-item"><span class="swatch cnode-gate"></span>AND/OR — garbled</span>
+      <span class="legend-item"><span class="swatch cnode-out"></span>output</span>
+    </div>`;
+}
+
+function renderProtoMeter(): void {
+  const meter = maybe('#proto-meter');
+  const p = state.protocol;
+  if (!meter || !p) {
+    if (meter) meter.innerHTML = '';
+    return;
+  }
+  const cells: Array<[string, string]> = [
+    ['Gates', `${p.gateCount}`],
+    ['AND/OR (garbled)', `${p.andOrCount}`],
+    ['XOR (free)', `${p.xorCount}`],
+    ['Oblivious transfers', `${p.otCount}`],
+    ['Garbled payload', `${p.garbledBytes} B`],
+    ['Saved by Free XOR', `≈ ${p.freeXorBytesSaved} B`],
+  ];
+  meter.innerHTML = cells
+    .map(([k, v]) => `<div class="meter"><div class="meter-v">${v}</div><div class="meter-k">${k}</div></div>`)
+    .join('');
+}
+
+function renderProtoChecklist(): void {
+  const el = maybe('#proto-checklist');
+  const p = state.protocol;
+  if (!el || !p) return;
+  const total = p.gateCount;
+  const done = state.protoStep;
+  const finished = done >= total;
+  const items = [
+    `✓ Circuit garbled — ${p.andOrCount} AND/OR tables encrypted, ${p.xorCount} XOR gates free`,
+    `✓ Alice's input labels sent for bits ${p.aliceBits.join('')}`,
+    `✓ ${p.otCount} OTs delivered Bob's labels for bits ${p.bobBits.join('')} (Alice learns nothing)`,
+    finished
+      ? `✓ Evaluated all ${total} gates → output labels for <code>gt</code>, <code>eq</code>`
+      : `▷ Evaluating: ${done} / ${total} gates`,
+  ];
+  el.innerHTML = `<ol class="checklist">${items.map((i) => `<li>${i}</li>`).join('')}</ol>`;
+}
+
+function renderProtoResult(): void {
+  const el = maybe('#full-result');
+  const p = state.protocol;
+  if (!el || !p) return;
+  if (state.protoStep >= p.gateCount) {
+    el.innerHTML = `Output mapping revealed → <strong class="verdict">${p.output}</strong>. Both parties learn only this; Alice never saw Bob's ${p.bobValue}, Bob never saw Alice's ${p.aliceValue}.`;
+  } else {
+    el.innerHTML = `Evaluation in progress — output wires <code>gt</code>/<code>eq</code> still hold opaque labels.`;
+  }
+}
+
+function renderEfficiency(): void {
+  const el = maybe('#efficiency-live');
+  const p = state.protocol;
+  if (!el || !p) return;
+  el.innerHTML = `Measured on the last run: <strong>${p.garbledBytes} bytes</strong> of garbled tables for ${p.andOrCount} AND/OR gates, with ${p.xorCount} XOR gates contributing <strong>0 bytes</strong> (Free XOR saved ≈ ${p.freeXorBytesSaved} bytes vs. classic 4-row garbling).`;
+}
+
+function refreshProtocol(): void {
+  renderCircuitStage();
+  renderProtoChecklist();
+  renderProtoMeter();
+  renderProtoResult();
+  renderEfficiency();
+  const stepBtn = maybe<HTMLButtonElement>('#proto-step');
+  if (stepBtn && state.protocol) stepBtn.disabled = state.protoStep >= state.protocol.gateCount;
+}
+
+// ── Theme ────────────────────────────────────────────────────────────────
+
+function setThemeButton(theme: 'dark' | 'light'): void {
+  const btn = q<HTMLButtonElement>('#theme-toggle');
+  btn.textContent = theme === 'dark' ? '🌙' : '☀️';
+  btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+}
+
+function persistTheme(theme: 'dark' | 'light'): void {
+  // localStorage can throw in sandboxed iframes / private mode — degrade gracefully.
+  try {
+    localStorage.setItem('theme', theme);
+  } catch {
+    /* no-op: theme just won't persist across reloads */
+  }
+}
+
+function setupThemeToggle(): void {
+  const btn = q<HTMLButtonElement>('#theme-toggle');
+  const initial = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  setThemeButton(initial);
+  btn.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    const next: 'dark' | 'light' = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    persistTheme(next);
+    setThemeButton(next);
+  });
+}
+
+// ── Events ───────────────────────────────────────────────────────────────
+
+async function withBusy(btn: HTMLButtonElement, label: string, fn: () => Promise<void>): Promise<void> {
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
+  btn.textContent = label;
+  try {
+    await fn();
+  } finally {
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+    btn.textContent = orig;
+  }
 }
 
 function wireEvents(): void {
+  document.addEventListener('click', (e) => handleQuizClick(e.target as HTMLElement));
+
+  // Exhibit 1
   const alice = q<HTMLInputElement>('#alice-wealth');
   const bob = q<HTMLInputElement>('#bob-wealth');
-  alice.addEventListener('input', () => {
-    q('#alice-wealth-val').textContent = formatMoney(Number.parseInt(alice.value, 10));
-  });
-  bob.addEventListener('input', () => {
-    q('#bob-wealth-val').textContent = formatMoney(Number.parseInt(bob.value, 10));
-  });
+  alice.addEventListener('input', () => (q('#alice-wealth-val').textContent = formatMoney(Number.parseInt(alice.value, 10))));
+  bob.addEventListener('input', () => (q('#bob-wealth-val').textContent = formatMoney(Number.parseInt(bob.value, 10))));
 
-  q<HTMLButtonElement>('#solve-millionaire').addEventListener('click', async () => {
-    const btn = q<HTMLButtonElement>('#solve-millionaire');
-    btn.disabled = true;
-    btn.setAttribute('aria-busy', 'true');
-    btn.textContent = 'Running…';
-    try {
-    const a = Number.parseInt(alice.value, 10);
-    const b = Number.parseInt(bob.value, 10);
+  q<HTMLButtonElement>('#solve-millionaire').addEventListener('click', (e) =>
+    withBusy(e.currentTarget as HTMLButtonElement, 'Running…', async () => {
+      const a = Number.parseInt(alice.value, 10);
+      const b = Number.parseInt(bob.value, 10);
+      const a3 = Math.max(1, Math.min(7, Math.round((a / 100) * 7)));
+      const b3 = Math.max(1, Math.min(7, Math.round((b / 100) * 7)));
+      const run = await runMillionaireProtocol3Bit(a3, b3);
+      q('#millionaire-result').innerHTML = `Verdict from the garbled circuit: <strong class="verdict">${run.output}</strong>.<br>
+        <span class="muted">Inputs quantised to 3 bits for the live circuit: Alice ${a} → ${a3}, Bob ${b} → ${b3}. Explore the gate-by-gate run in Exhibit 4.</span>`;
+    }),
+  );
 
-    const a3 = Math.max(1, Math.min(7, Math.round((a / 100) * 7)));
-    const b3 = Math.max(1, Math.min(7, Math.round((b / 100) * 7)));
-    const run = await runMillionaireProtocol3Bit(a3, b3);
-    state.protocolRun = run;
+  // Exhibit 2
+  q<HTMLButtonElement>('#garble-and').addEventListener('click', (e) =>
+    withBusy(e.currentTarget as HTMLButtonElement, 'Garbling…', async () => {
+      state.andDemo = await garbleAndGateDemo();
+      state.andEval = null;
+      state.andTrial = null;
+      renderAndStage();
+    }),
+  );
 
-    q('#millionaire-result').innerHTML = `Final public output (from garbled circuit): <strong>${run.output}</strong>.<br>Alice's 3-bit value=${a3}, Bob's 3-bit value=${b3} (quantized from ${a} and ${b}).`;
-    q('#full-steps').innerHTML = `<ol>${run.steps.map((s) => `<li>${s}</li>`).join('')}</ol>`;
-    q('#full-result').innerHTML = `Protocol output: <strong>${run.output}</strong>.`;
-    q('#efficiency-live').innerHTML = `Measured in this run: ${run.gateCount} total gates (${run.andOrCount} AND/OR, ${run.xorCount} XOR), ${run.otCount} OTs, garbled payload ${run.garbledBytes} bytes.`;
-    } finally {
-      btn.disabled = false;
-      btn.removeAttribute('aria-busy');
-      btn.textContent = 'Solve with Garbled Circuits';
-    }
-  });
-
-  q<HTMLButtonElement>('#garble-and').addEventListener('click', async () => {
-    const btn = q<HTMLButtonElement>('#garble-and');
-    btn.disabled = true;
-    btn.setAttribute('aria-busy', 'true');
-    btn.textContent = 'Garbling…';
-    try {
-    state.andDemo = await garbleAndGateDemo();
-    const d = state.andDemo;
-    q('#and-labels').innerHTML = `
-      <strong>Step 1 labels</strong><br>
-      A0=${bytesToHex(d.wireA.zero)}<br>
-      A1=${bytesToHex(d.wireA.one)}<br>
-      B0=${bytesToHex(d.wireB.zero)}<br>
-      B1=${bytesToHex(d.wireB.one)}<br>
-      C0=${bytesToHex(d.wireOut.zero)}<br>
-      C1=${bytesToHex(d.wireOut.one)}
-    `;
-    q('#and-table').innerHTML = `
-      <strong>Step 2 garbled table (4 encrypted rows, shuffled)</strong><br>
-      ${d.shuffledRows
-        .map(
-          (r, idx) =>
-            `Row ${idx + 1}: id=${r.rowId} iv=${r.ivHex.slice(0, 18)}... ct=${r.cipherHex.slice(0, 24)}...`,
-        )
-        .join('<br>')}
-    `;
-    q('#and-eval').textContent = 'Ready for evaluation.';
-    } finally {
-      btn.disabled = false;
-      btn.removeAttribute('aria-busy');
-      btn.textContent = 'Garble';
-    }
-  });
-
-  q<HTMLButtonElement>('#eval-and').addEventListener('click', async () => {
+  const doEval = async (reveal: boolean) => {
     if (!state.andDemo) {
-      q('#and-eval').textContent = 'Garble first.';
+      renderAndStage();
       return;
     }
-    const evalBtn = q<HTMLButtonElement>('#eval-and');
-    evalBtn.disabled = true;
-    evalBtn.setAttribute('aria-busy', 'true');
-    evalBtn.textContent = 'Evaluating…';
-    try {
+    const aBit = Number.parseInt(q<HTMLSelectElement>('#and-a').value, 10) as 0 | 1;
+    const bBit = Number.parseInt(q<HTMLSelectElement>('#and-b').value, 10) as 0 | 1;
+    state.andEval = await evaluateAndGateDemo(state.andDemo, aBit, bBit, reveal);
+    state.andTrial = null;
+    renderAndStage();
+  };
+  q<HTMLButtonElement>('#eval-and').addEventListener('click', (e) =>
+    withBusy(e.currentTarget as HTMLButtonElement, 'Evaluating…', () => doEval(false)),
+  );
+  q<HTMLButtonElement>('#reveal-and').addEventListener('click', (e) =>
+    withBusy(e.currentTarget as HTMLButtonElement, 'Revealing…', () => doEval(true)),
+  );
+  q<HTMLButtonElement>('#trial-and').addEventListener('click', (e) =>
+    withBusy(e.currentTarget as HTMLButtonElement, 'Trying all rows…', async () => {
+      if (!state.andDemo) return;
       const aBit = Number.parseInt(q<HTMLSelectElement>('#and-a').value, 10) as 0 | 1;
       const bBit = Number.parseInt(q<HTMLSelectElement>('#and-b').value, 10) as 0 | 1;
-      const evalOut = await evaluateAndGateDemo(state.andDemo, aBit, bBit, false);
-      q('#and-eval').innerHTML = `
-        <strong>Step 5 evaluation</strong><br>
-        Attempts: ${evalOut.attempted.map((a) => `${a.rowId}:${a.success ? 'ok' : 'fail'}`).join(', ')}<br>
-        Successful row: ${evalOut.successfulRowId ?? 'none'}<br>
-        Output label: ${evalOut.outputLabelHex || 'none'}
-      `;
-    } finally {
-      evalBtn.disabled = false;
-      evalBtn.removeAttribute('aria-busy');
-      evalBtn.textContent = 'Evaluate';
+      if (!state.andEval) state.andEval = await evaluateAndGateDemo(state.andDemo, aBit, bBit, false);
+      state.andTrial = await trialDecryptAll(state.andDemo, aBit, bBit);
+      renderAndStage();
+    }),
+  );
+
+  // Exhibit 3
+  q<HTMLButtonElement>('#run-ot').addEventListener('click', (e) =>
+    withBusy(e.currentTarget as HTMLButtonElement, 'Running…', async () => {
+      const choice = Number.parseInt(q<HTMLSelectElement>('#ot-choice').value, 10) as 0 | 1;
+      const m0 = crypto.getRandomValues(new Uint8Array(16));
+      const m1 = crypto.getRandomValues(new Uint8Array(16));
+      const trace = await runInputLabelOT(m0, m1, choice);
+      const openBody = (hex: string) => `<div class="ot-box-body lock-open">🔓 ${shortHex(hex)}</div>`;
+      const shutBody = `<div class="ot-box-body lock">🔒 stays sealed — Bob can't derive this key</div>`;
+      q('#box0').innerHTML = `<div class="ot-box-top">Wire-label for bit&nbsp;0</div>${choice === 0 ? openBody(trace.receivedHex) : shutBody}`;
+      q('#box0').className = `ot-box ${choice === 0 ? 'ot-box-open' : ''}`;
+      q('#box1').innerHTML = `<div class="ot-box-top">Wire-label for bit&nbsp;1</div>${choice === 1 ? openBody(trace.receivedHex) : shutBody}`;
+      q('#box1').className = `ot-box ${choice === 1 ? 'ot-box-open' : ''}`;
+      q('#ot-steps').innerHTML = `
+        <strong>What happened</strong>
+        <ol class="tight">
+          <li>Bob sent <code>B = ${shortHex(trace.BHex)}</code> — folds in his choice ${choice}, but looks identical to Alice either way.</li>
+          <li>Alice replied with two ciphertexts keyed to <code>A = ${shortHex(trace.AHex)}</code>.</li>
+          <li>Bob derived one key and recovered <strong>label for bit ${choice}</strong> = <code>${shortHex(trace.receivedHex)}</code>.</li>
+          <li>Alice never learns <em>which</em> box opened.</li>
+        </ol>`;
+    }),
+  );
+
+  // Exhibit 4
+  const fa = q<HTMLInputElement>('#full-alice');
+  const fb = q<HTMLInputElement>('#full-bob');
+  fa.addEventListener('input', () => (q('#full-alice-val').textContent = fa.value));
+  fb.addEventListener('input', () => (q('#full-bob-val').textContent = fb.value));
+
+  const setStepperEnabled = (on: boolean) => {
+    (['#proto-step', '#proto-auto', '#proto-reset'] as const).forEach((id) => {
+      const b = maybe<HTMLButtonElement>(id);
+      if (b) b.disabled = !on;
+    });
+  };
+
+  q<HTMLButtonElement>('#run-full').addEventListener('click', (e) =>
+    withBusy(e.currentTarget as HTMLButtonElement, 'Garbling…', async () => {
+      stopAuto();
+      state.protocol = await runMillionaireProtocol3Bit(Number.parseInt(fa.value, 10), Number.parseInt(fb.value, 10));
+      state.protoStep = 0;
+      setStepperEnabled(true);
+      refreshProtocol();
+    }),
+  );
+
+  q<HTMLButtonElement>('#proto-step').addEventListener('click', () => {
+    if (!state.protocol) return;
+    if (state.protoStep < state.protocol.gateCount) {
+      state.protoStep += 1;
+      refreshProtocol();
     }
   });
 
-  q<HTMLButtonElement>('#reveal-and').addEventListener('click', async () => {
-    if (!state.andDemo) {
-      q('#and-eval').textContent = 'Garble first.';
+  q<HTMLButtonElement>('#proto-auto').addEventListener('click', () => {
+    if (!state.protocol) return;
+    if (state.autoTimer !== null) {
+      stopAuto();
       return;
     }
-    const revBtn = q<HTMLButtonElement>('#reveal-and');
-    revBtn.disabled = true;
-    revBtn.setAttribute('aria-busy', 'true');
-    revBtn.textContent = 'Revealing…';
-    try {
-      const aBit = Number.parseInt(q<HTMLSelectElement>('#and-a').value, 10) as 0 | 1;
-      const bBit = Number.parseInt(q<HTMLSelectElement>('#and-b').value, 10) as 0 | 1;
-      const evalOut = await evaluateAndGateDemo(state.andDemo, aBit, bBit, true);
-      const bitTxt = evalOut.outputBit === null ? 'undetermined' : String(evalOut.outputBit);
-      q('#and-eval').innerHTML = `${q('#and-eval').innerHTML}<br><strong>Reveal mapping:</strong> output bit = ${bitTxt}`;
-    } finally {
-      revBtn.disabled = false;
-      revBtn.removeAttribute('aria-busy');
-      revBtn.textContent = 'Reveal mapping';
-    }
+    if (state.protoStep >= state.protocol.gateCount) state.protoStep = 0;
+    const tick = () => {
+      if (!state.protocol || state.protoStep >= state.protocol.gateCount) {
+        stopAuto();
+        return;
+      }
+      state.protoStep += 1;
+      refreshProtocol();
+      state.autoTimer = window.setTimeout(tick, reduceMotion ? 0 : 480);
+    };
+    q<HTMLButtonElement>('#proto-auto').textContent = 'Pause';
+    tick();
   });
 
-  q<HTMLButtonElement>('#run-ot').addEventListener('click', async () => {
-    const otBtn = q<HTMLButtonElement>('#run-ot');
-    otBtn.disabled = true;
-    otBtn.setAttribute('aria-busy', 'true');
-    otBtn.textContent = 'Running…';
-    try {
-    const choice = Number.parseInt(q<HTMLSelectElement>('#ot-choice').value, 10) as 0 | 1;
-    const m0 = crypto.getRandomValues(new Uint8Array(16));
-    const m1 = crypto.getRandomValues(new Uint8Array(16));
-    const trace = await runInputLabelOT(m0, m1, choice);
-
-    q('#ot-inputs').innerHTML = `Alice labels (messages):<br>W_B0=${bytesToHex(m0)}<br>W_B1=${bytesToHex(m1)}`;
-    q('#ot-steps').innerHTML = `
-      1) Bob creates ephemeral keypair and sends B-variant derived from choice bit.<br>
-      2) Alice computes two ciphertexts using A and B.<br>
-      3) Bob derives one key and decrypts one message.<br>
-      4) Bob received W_B${choice}=${trace.receivedHex}. Alice learns nothing about choice.<br>
-      A=${trace.AHex.slice(0, 24)}... B=${trace.BHex.slice(0, 24)}...
-    `;
-
-    q('#box0').innerHTML = choice === 0 ? `<span class="ok">Opened: ${trace.receivedHex.slice(0, 20)}...</span>` : '<span class="bad">Remains locked</span>';
-    q('#box1').innerHTML = choice === 1 ? `<span class="ok">Opened: ${trace.receivedHex.slice(0, 20)}...</span>` : '<span class="bad">Remains locked</span>';
-    } finally {
-      otBtn.disabled = false;
-      otBtn.removeAttribute('aria-busy');
-      otBtn.textContent = 'Run OT';
-    }
+  q<HTMLButtonElement>('#proto-reset').addEventListener('click', () => {
+    stopAuto();
+    state.protoStep = 0;
+    refreshProtocol();
   });
 
-  const fullAlice = q<HTMLInputElement>('#full-alice');
-  const fullBob = q<HTMLInputElement>('#full-bob');
-  fullAlice.addEventListener('input', () => {
-    q('#full-alice-val').textContent = fullAlice.value;
-    fullAlice.setAttribute('aria-valuenow', fullAlice.value);
+  q<HTMLInputElement>('#god-view').addEventListener('change', (e) => {
+    state.godView = (e.currentTarget as HTMLInputElement).checked;
+    renderCircuitStage();
   });
-  fullBob.addEventListener('input', () => {
-    q('#full-bob-val').textContent = fullBob.value;
-    fullBob.setAttribute('aria-valuenow', fullBob.value);
-  });
+}
 
-  q<HTMLButtonElement>('#run-full').addEventListener('click', async () => {
-    const fullBtn = q<HTMLButtonElement>('#run-full');
-    fullBtn.disabled = true;
-    fullBtn.setAttribute('aria-busy', 'true');
-    fullBtn.textContent = 'Running…';
-    try {
-    const run = await runMillionaireProtocol3Bit(Number.parseInt(fullAlice.value, 10), Number.parseInt(fullBob.value, 10));
-    state.protocolRun = run;
-    q('#full-steps').innerHTML = `<ol>${run.steps.map((s) => `<li>${s}</li>`).join('')}</ol>`;
-    q('#full-result').innerHTML = `Final output: <strong>${run.output}</strong>. Alice and Bob learn output only.`;
-    q('#efficiency-live').innerHTML = `Measured in this run: ${run.gateCount} total gates (${run.andOrCount} AND/OR, ${run.xorCount} XOR), ${run.otCount} OTs, garbled payload ${run.garbledBytes} bytes.`;
-    } finally {
-      fullBtn.disabled = false;
-      fullBtn.removeAttribute('aria-busy');
-      fullBtn.textContent = 'Run Full Protocol';
-    }
-  });
+function stopAuto(): void {
+  if (state.autoTimer !== null) {
+    window.clearTimeout(state.autoTimer);
+    state.autoTimer = null;
+  }
+  const b = maybe<HTMLButtonElement>('#proto-auto');
+  if (b) b.textContent = 'Auto-play';
 }
 
 render();

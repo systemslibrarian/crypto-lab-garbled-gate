@@ -18,7 +18,16 @@ Garbled Gate demonstrates Yao's Garbled Circuits (Yao, FOCS 1986) - the foundati
 
 Link: https://systemslibrarian.github.io/crypto-lab-garbled-gate/
 
-Six exhibits: the Millionaire's Problem motivation, step-by-step garbling of an AND gate with real wire labels and encrypted garbled table, Oblivious Transfer for input wires with Chou-Orlandi OT, the full millionaire's protocol end-to-end on a 3-bit comparison circuit, security analysis and Free XOR/Half Gates optimizations, and real-world deployments in PSI, secure ML inference, and threshold cryptography.
+Six interactive exhibits, built to be *watched*, not just read:
+
+1. **The Millionaire's Problem** — the motivating scenario, with a one-click private comparison and a self-check.
+2. **Anatomy of one garbled gate** — a visual AND gate with colour-coded 128-bit wire-label chips and four *padlock* rows. Step garble → pick inputs → evaluate → reveal, and watch **point-and-permute** open exactly one row. A "Why only one row?" view trial-decrypts all four so you see three GCM rejections and one success.
+3. **Oblivious Transfer** — real Chou–Orlandi OT on Curve25519; one box opens, the other stays sealed, and Alice can't tell which.
+4. **The full protocol, gate by gate** — a layered SVG comparator circuit you step through gate by gate, with a **God-view** toggle that reveals the secret bit on every wire (the view Bob never has) and a live meter of garbled bytes / OTs / Free-XOR savings.
+5. **Security & cost** — semi-honest model, single-use circuits, Free XOR / row reduction / Half Gates, and a comparison against secret-sharing MPC and FHE.
+6. **In production** — PSI, secure ML inference, sealed-bid auctions, threshold signatures, plus the MPC family tree.
+
+Every exhibit runs **real cryptography** in the browser (WebCrypto AES-128-GCM, `@noble/curves` ed25519, genuine Free-XOR with a global Δ). An **Honest implementation notes** section documents exactly where the demo simplifies for teaching.
 
 ## 4. How to Run Locally
 
@@ -26,7 +35,10 @@ Six exhibits: the Millionaire's Problem motivation, step-by-step garbling of an 
 git clone https://github.com/systemslibrarian/crypto-lab-garbled-gate
 cd crypto-lab-garbled-gate
 npm install
-npm run dev
+npm run dev      # local dev server
+npm test         # vitest: AND/OR/XOR correctness, Free-XOR invariant,
+                 # point-and-permute, OT, comparator over all 49 pairs, UI mount
+npm run build    # typecheck + production bundle
 ```
 
 ## 5. Part of the Crypto-Lab Suite
