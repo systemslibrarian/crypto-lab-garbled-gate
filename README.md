@@ -24,8 +24,8 @@ Six interactive exhibits, built to be *watched*, not just read:
 1. **The Millionaire's Problem** — the motivating scenario, with a one-click private comparison and a self-check.
 2. **Anatomy of one garbled gate** — a visual AND gate with colour-coded 128-bit wire-label chips and four *padlock* rows. Step garble → pick inputs → evaluate → reveal, and watch **point-and-permute** open exactly one row. A "Why only one row?" view trial-decrypts all four so you see three GCM rejections and one success.
 3. **Oblivious Transfer** — real Chou–Orlandi OT on Curve25519; one box opens, the other stays sealed, and Alice can't tell which.
-4. **The full protocol, gate by gate** — a layered SVG comparator circuit you step through gate by gate, with a **God-view** toggle that reveals the secret bit on every wire (the view Bob never has) and a live meter of garbled bytes / OTs / Free-XOR savings.
-5. **Security & cost** — semi-honest model, single-use circuits, Free XOR / row reduction / Half Gates, and a comparison against secret-sharing MPC and FHE.
+4. **The full protocol, gate by gate** — a layered SVG comparator circuit you step through gate by gate (buttons or ←/→ arrow keys), with per-gate narration of *how* each gate opens, a **God-view** toggle that reveals the secret bit on every wire (the view Bob never has), and a live meter of garbled bytes / OTs / Free-XOR savings.
+5. **Security & cost** — semi-honest model, Free XOR / row reduction / Half Gates, a comparison against secret-sharing MPC and FHE, and a **live label-reuse attack**: reuse one garbled gate and watch Bob extract Alice's secret bit with two honest decryptions.
 6. **In production** — PSI, secure ML inference, sealed-bid auctions, threshold signatures, plus the MPC family tree.
 
 Every exhibit runs **real cryptography** in the browser (WebCrypto AES-128-GCM, `@noble/curves` ed25519, genuine Free-XOR with a global Δ). An **Honest implementation notes** section documents exactly where the demo simplifies for teaching.

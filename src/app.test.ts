@@ -21,7 +21,7 @@ describe('UI mounts and wires up', () => {
   });
 
   it('mounts the interactive controls', () => {
-    for (const id of ['garble-and', 'run-ot', 'run-full', 'proto-step', 'god-view', 'theme-toggle']) {
+    for (const id of ['garble-and', 'run-ot', 'run-full', 'proto-step', 'proto-back', 'run-reuse', 'god-view', 'theme-toggle']) {
       expect(document.getElementById(id), `missing ${id}`).toBeTruthy();
     }
     // stage placeholders are present before any run
@@ -62,15 +62,47 @@ describe('UI mounts and wires up', () => {
     });
   });
 
-  cryptoIt('running and stepping the full circuit lights up gates', async () => {
+  cryptoIt('running and stepping the full circuit lights up gates and narrates them', async () => {
     (document.getElementById('run-full') as HTMLButtonElement).click();
     await vi.waitFor(() => {
       expect(document.querySelector('#circuit-stage .circuit-svg')).toBeTruthy();
       expect(document.querySelector('#proto-meter .meter')).toBeTruthy();
     });
     const stepBtn = document.getElementById('proto-step') as HTMLButtonElement;
+    const backBtn = document.getElementById('proto-back') as HTMLButtonElement;
     expect(stepBtn.disabled).toBe(false);
+    expect(backBtn.disabled).toBe(true); // nothing to undo yet
     stepBtn.click();
     expect(document.querySelectorAll('#circuit-stage .cnode-on').length).toBeGreaterThan(0);
+    expect(document.querySelectorAll('#circuit-stage .cnode-current').length).toBe(1);
+    expect(document.getElementById('proto-gate')!.textContent).toContain('Gate 1/');
+    expect(backBtn.disabled).toBe(false);
+    backBtn.click();
+    expect(document.querySelectorAll('#circuit-stage .cnode-current').length).toBe(0);
+  });
+
+  cryptoIt('arrow keys step the circuit; modified and boundary presses are left alone', async () => {
+    const stage = document.getElementById('circuit-stage')!;
+    const arrow = (key: string, init: KeyboardEventInit = {}) => {
+      const ev = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+      stage.dispatchEvent(ev);
+      return ev;
+    };
+    // circuit is at step 0 from the previous test's Back click
+    expect(arrow('ArrowLeft').defaultPrevented).toBe(false); // boundary: native scroll keeps working
+    expect(arrow('ArrowRight', { altKey: true }).defaultPrevented).toBe(false); // Alt+→ untouched
+    expect(arrow('ArrowRight').defaultPrevented).toBe(true);
+    expect(document.getElementById('proto-gate')!.textContent).toContain('Gate 1/');
+    expect(arrow('ArrowLeft').defaultPrevented).toBe(true);
+    expect(document.querySelectorAll('#circuit-stage .cnode-current').length).toBe(0);
+  });
+
+  cryptoIt('label-reuse attack deduces Alice’s bit and confirms it', async () => {
+    (document.getElementById('run-reuse') as HTMLButtonElement).click();
+    await vi.waitFor(() => {
+      const stage = document.getElementById('reuse-stage')!;
+      expect(stage.querySelector('.verdict')).toBeTruthy();
+      expect(stage.textContent).toContain('correct ✓');
+    });
   });
 });

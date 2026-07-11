@@ -7,6 +7,7 @@ import {
   garbleAndGateDemo,
   labelPermuteBit,
   runInputLabelOT,
+  runLabelReuseAttack,
   runMillionaireProtocol3Bit,
   trialDecryptAll,
   __test,
@@ -72,6 +73,30 @@ describe('single garbled AND gate', () => {
       expect(xorHex(wire.zero, delta)).toBe(bytesToHex(wire.one));
       // and opposite colour bits, which point-and-permute relies on
       expect(labelPermuteBit(wire.zero)).not.toBe(labelPermuteBit(wire.one));
+    }
+  });
+});
+
+describe('label-reuse attack (why circuits are single-use)', () => {
+  it('recovers Alice’s secret bit from two decryptions, for both bit values', async () => {
+    for (const aliceBit of [0, 1] as const) {
+      const demo = await garbleAndGateDemo();
+      const atk = await runLabelReuseAttack(demo, aliceBit);
+      // C(a∧0)=C₀ and C(a∧1)=C_a, so the outputs match exactly when a=0.
+      expect(atk.outputsEqual).toBe(aliceBit === 0);
+      expect(atk.deducedAliceBit).toBe(aliceBit);
+    }
+  });
+
+  it('the two decryptions open different rows and recover real output labels', async () => {
+    const demo = await garbleAndGateDemo();
+    const atk = await runLabelReuseAttack(demo, 1);
+    // B⁰ and B¹ carry opposite colour bits (Free-XOR Δ has lsb 1), so the two
+    // decryptions must land on different slots.
+    expect(atk.decrypts[0].slot).not.toBe(atk.decrypts[1].slot);
+    const outLabels = [bytesToHex(demo.wireOut.zero), bytesToHex(demo.wireOut.one)];
+    for (const d of atk.decrypts) {
+      expect(outLabels).toContain(d.outputLabelHex);
     }
   });
 });

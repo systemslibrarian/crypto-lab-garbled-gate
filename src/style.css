@@ -876,6 +876,10 @@ output {
 .cnode-on rect {
   fill: color-mix(in srgb, var(--success) 16%, var(--surface-alt));
 }
+.cnode-current rect {
+  stroke: var(--warning);
+  stroke-width: 2.5;
+}
 .swatch.cnode-alice {
   background: var(--sender-surface);
   border: 2px solid var(--sender-color);

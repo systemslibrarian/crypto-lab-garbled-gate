@@ -1,17 +1,19 @@
 import './style.css';
 import {
   bytesToHex,
-  comparatorLayout,
   evaluateAndGateDemo,
   garbleAndGateDemo,
   labelPermuteBit,
+  randomBit,
   runInputLabelOT,
+  runLabelReuseAttack,
   runMillionaireProtocol3Bit,
   trialDecryptAll,
   type AndGateDemo,
   type AndGateEvaluation,
   type CircuitLayout,
   type MillionaireProtocolResult,
+  type ReuseAttackResult,
 } from './yao';
 
 // ── State ────────────────────────────────────────────────────────────────
@@ -24,6 +26,7 @@ interface AppState {
   protoStep: number; // how many gates have been evaluated in the walkthrough
   godView: boolean;
   autoTimer: number | null;
+  reuse: ReuseAttackResult | null;
 }
 
 const state: AppState = {
@@ -34,6 +37,7 @@ const state: AppState = {
   protoStep: 0,
   godView: false,
   autoTimer: null,
+  reuse: null,
 };
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -362,13 +366,15 @@ function exhibit4(): string {
       <div style="flex:1; min-width:160px; align-self:flex-end;"><button id="run-full" class="btn btn-primary" type="button">Set up & garble</button></div>
     </div>
     <div class="stepper" role="group" aria-label="Circuit walkthrough controls">
+      <button id="proto-back" class="btn" type="button" disabled>◀ Back</button>
       <button id="proto-step" class="btn" type="button" disabled>Step ▶</button>
       <button id="proto-auto" class="btn" type="button" disabled>Auto-play</button>
       <button id="proto-reset" class="btn btn-ghost" type="button" disabled>Reset run</button>
       <label class="switch"><input type="checkbox" id="god-view" /> <span>God view (reveal wire bits)</span></label>
     </div>
     <div id="proto-checklist" class="status" aria-live="polite">Press “Set up &amp; garble” to begin.</div>
-    <div id="circuit-stage" class="circuit-wrap" tabindex="0" role="region" aria-label="Comparator circuit diagram"></div>
+    <div id="circuit-stage" class="circuit-wrap" tabindex="0" role="region" aria-label="Comparator circuit diagram. Focus this region and use the Left and Right arrow keys to step through gates."></div>
+    <div id="proto-gate" class="status stage-narrate" aria-live="polite" hidden></div>
     <div id="proto-meter" class="meter-grid"></div>
     <div id="full-result" class="status" aria-live="polite">Verdict hidden until evaluation reaches the output wires.</div>
     <div class="callout">
@@ -420,6 +426,12 @@ function exhibit5(): string {
     </table>
     </div>
     <div id="efficiency-live" class="status" aria-live="polite">Run Exhibit 4 to measure this circuit's real garbled-payload size and how many bytes Free XOR saved.</div>
+    <h3 style="margin-top:1rem;">Watch the single-use rule break: a live label-reuse attack</h3>
+    <p>Everything above says a garbled circuit must be <strong>single-use</strong>. Here's why, run for real. Alice garbles one AND gate with a secret input bit <em>a</em>. Then she (wrongly) reuses it, so Bob ends up holding <em>both</em> of his labels B⁰ <em>and</em> B¹. Two honest decryptions later, her "hidden" bit falls out — no cryptography is broken, only the protocol rule.</p>
+    <div class="stepper" role="group" aria-label="Reuse attack controls">
+      <button id="run-reuse" class="btn btn-primary" type="button">Garble a gate &amp; run the attack</button>
+    </div>
+    <div id="reuse-stage" class="status" aria-live="polite">Alice's bit is chosen at random and never sent. Run the attack and watch Bob compute it anyway.</div>
     ${quiz('s1', 'Why must a garbled circuit never be evaluated twice with the same labels?', [
       { label: 'It would be too slow', correct: false, explain: 'Speed isn\'t the issue — reuse is a security failure, not a performance one.' },
       { label: 'Reusing labels can leak input bits', correct: true, explain: 'Right. Seeing which rows decrypt across two runs lets the evaluator correlate labels to logical values. Each circuit is single-use.' },
@@ -638,6 +650,7 @@ function renderCircuitStage(): void {
   }
   const { nodes, width, height } = layoutPositions(p.layout);
   const evaluated = new Set(p.gateTrace.slice(0, state.protoStep).map((g) => g.out));
+  const currentOut = state.protoStep > 0 ? p.gateTrace[state.protoStep - 1].out : null;
   const god = state.godView;
 
   const wireBitOf = (wire: string): 0 | 1 | undefined => {
@@ -681,6 +694,7 @@ function renderCircuitStage(): void {
       else cls.push(n.type === 'XOR' ? 'cnode-xor' : 'cnode-gate');
       if (evaluatedNode) cls.push('cnode-on');
       if (isOutput) cls.push('cnode-out');
+      if (n.wire === currentOut) cls.push('cnode-current');
       const label = isInput ? n.wire : n.type;
       const bitBadge =
         god && bit !== undefined
@@ -706,6 +720,54 @@ function renderCircuitStage(): void {
       <span class="legend-item"><span class="swatch cnode-gate"></span>AND/OR — garbled</span>
       <span class="legend-item"><span class="swatch cnode-out"></span>output</span>
     </div>`;
+}
+
+function renderGateNarration(): void {
+  const el = maybe('#proto-gate');
+  if (!el) return;
+  const p = state.protocol;
+  el.hidden = !p;
+  if (!p) {
+    el.innerHTML = '';
+    return;
+  }
+  if (state.protoStep === 0) {
+    el.innerHTML = 'No gates evaluated yet. Press <strong>Step ▶</strong> — or focus the diagram and use the ← / → arrow keys.';
+    return;
+  }
+  const g = p.gateTrace[state.protoStep - 1];
+  const how = g.free
+    ? 'Free XOR — Bob simply XORs the two input labels locally. No ciphertext, no decryption, zero cost.'
+    : `point-and-permute — the two labels' colour bits name <strong>slot ${g.slot}</strong>; Bob decrypts that one row and now holds a new opaque label for <code>${esc(g.out)}</code>.`;
+  const god = state.godView
+    ? ` <span class="muted">(God view: secretly ${g.aBit} ${g.type} ${g.bBit} = ${g.outBit})</span>`
+    : '';
+  el.innerHTML = `Gate <strong>${state.protoStep}/${p.gateCount}</strong> — <strong>${g.type}(${esc(g.inA)}, ${esc(g.inB)}) → ${esc(g.out)}</strong> · ${how}${god}`;
+}
+
+function renderReuseStage(): void {
+  const el = maybe('#reuse-stage');
+  if (!el) return;
+  const r = state.reuse;
+  if (!r) return;
+  const verdictLine = r.outputsEqual
+    ? `The two output labels are <strong>identical</strong>. Since the rows encrypt C<sub>a∧0</sub> and C<sub>a∧1</sub>, equal outputs force a∧0 = a∧1 — only possible if <strong class="verdict">a = 0</strong>.`
+    : `The two output labels <strong>differ</strong>. Since a∧0 = 0 always, a different label for a∧1 means it evaluated to 1 — so <strong class="verdict">a = 1</strong>.`;
+  const correct = r.deducedAliceBit === r.aliceBit;
+  const decryptLines = r.decrypts
+    .map(
+      (d) =>
+        `<li>Reuse gave Bob label B${d.bobBit === 0 ? '⁰' : '¹'} — decrypting with (A, B${d.bobBit === 0 ? '⁰' : '¹'}) opens slot ${d.slot} → output label <code>${shortHex(d.outputLabelHex)}</code>.</li>`,
+    )
+    .join('');
+  el.innerHTML = `
+    <strong>Bob's attack transcript (same gate, reused labels)</strong>
+    <ol class="tight">
+      <li>Alice garbled a fresh AND gate; her secret bit rides inside label <code>${shortHex(r.aliceLabelHex)}</code> — unreadable on its own.</li>
+      ${decryptLines}
+      <li>${verdictLine}</li>
+    </ol>
+    <p style="margin:0.4rem 0 0;">Reveal check — Alice's actual bit was <strong>${r.aliceBit}</strong>; Bob's deduction is <strong class="${correct ? 'ok' : 'bad'}">${correct ? 'correct ✓' : 'wrong ✗'}</strong>. One reuse leaked one full input bit. This is why every evaluation needs fresh labels.</p>`;
 }
 
 function renderProtoMeter(): void {
@@ -766,12 +828,22 @@ function renderEfficiency(): void {
 
 function refreshProtocol(): void {
   renderCircuitStage();
+  renderGateNarration();
   renderProtoChecklist();
   renderProtoMeter();
   renderProtoResult();
   renderEfficiency();
   const stepBtn = maybe<HTMLButtonElement>('#proto-step');
-  if (stepBtn && state.protocol) stepBtn.disabled = state.protoStep >= state.protocol.gateCount;
+  const backBtn = maybe<HTMLButtonElement>('#proto-back');
+  if (stepBtn && backBtn && state.protocol) {
+    const atEnd = state.protoStep >= state.protocol.gateCount;
+    const atStart = state.protoStep <= 0;
+    // Hand focus to the sibling before disabling, or the browser drops it to <body>.
+    if (atEnd && document.activeElement === stepBtn) backBtn.focus();
+    if (atStart && document.activeElement === backBtn) stepBtn.focus();
+    stepBtn.disabled = atEnd;
+    backBtn.disabled = atStart;
+  }
 }
 
 // ── Theme ────────────────────────────────────────────────────────────────
@@ -910,7 +982,7 @@ function wireEvents(): void {
   fb.addEventListener('input', () => (q('#full-bob-val').textContent = fb.value));
 
   const setStepperEnabled = (on: boolean) => {
-    (['#proto-step', '#proto-auto', '#proto-reset'] as const).forEach((id) => {
+    (['#proto-back', '#proto-step', '#proto-auto', '#proto-reset'] as const).forEach((id) => {
       const b = maybe<HTMLButtonElement>(id);
       if (b) b.disabled = !on;
     });
@@ -919,6 +991,10 @@ function wireEvents(): void {
   q<HTMLButtonElement>('#run-full').addEventListener('click', (e) =>
     withBusy(e.currentTarget as HTMLButtonElement, 'Garbling…', async () => {
       stopAuto();
+      // Park the old run while re-garbling so Step/arrow keys can't mutate a
+      // protocol that is about to be replaced.
+      state.protocol = null;
+      setStepperEnabled(false);
       state.protocol = await runMillionaireProtocol3Bit(Number.parseInt(fa.value, 10), Number.parseInt(fb.value, 10));
       state.protoStep = 0;
       setStepperEnabled(true);
@@ -926,12 +1002,26 @@ function wireEvents(): void {
     }),
   );
 
-  q<HTMLButtonElement>('#proto-step').addEventListener('click', () => {
-    if (!state.protocol) return;
-    if (state.protoStep < state.protocol.gateCount) {
-      state.protoStep += 1;
-      refreshProtocol();
-    }
+  const stepBy = (dir: 1 | -1): boolean => {
+    if (!state.protocol) return false;
+    const next = Math.max(0, Math.min(state.protocol.gateCount, state.protoStep + dir));
+    if (next === state.protoStep) return false;
+    stopAuto();
+    state.protoStep = next;
+    refreshProtocol();
+    return true;
+  };
+
+  q<HTMLButtonElement>('#proto-step').addEventListener('click', () => stepBy(1));
+  q<HTMLButtonElement>('#proto-back').addEventListener('click', () => stepBy(-1));
+
+  q<HTMLElement>('#circuit-stage').addEventListener('keydown', (e) => {
+    // Leave modified keys (Alt+← is browser Back) and non-arrows alone.
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    // Only claim the key when it actually steps; otherwise (no circuit yet,
+    // or at either end) the region keeps its native horizontal scrolling.
+    if (stepBy(e.key === 'ArrowRight' ? 1 : -1)) e.preventDefault();
   });
 
   q<HTMLButtonElement>('#proto-auto').addEventListener('click', () => {
@@ -941,6 +1031,9 @@ function wireEvents(): void {
       return;
     }
     if (state.protoStep >= state.protocol.gateCount) state.protoStep = 0;
+    // Auto-play rewrites the narration every ~half second; silence the live
+    // region while it runs so screen readers aren't flooded. stopAuto restores it.
+    maybe('#proto-gate')?.setAttribute('aria-live', 'off');
     const tick = () => {
       if (!state.protocol || state.protoStep >= state.protocol.gateCount) {
         stopAuto();
@@ -962,8 +1055,17 @@ function wireEvents(): void {
 
   q<HTMLInputElement>('#god-view').addEventListener('change', (e) => {
     state.godView = (e.currentTarget as HTMLInputElement).checked;
-    renderCircuitStage();
+    refreshProtocol();
   });
+
+  // Exhibit 5 — label-reuse attack
+  q<HTMLButtonElement>('#run-reuse').addEventListener('click', (e) =>
+    withBusy(e.currentTarget as HTMLButtonElement, 'Attacking…', async () => {
+      const demo = await garbleAndGateDemo();
+      state.reuse = await runLabelReuseAttack(demo, randomBit());
+      renderReuseStage();
+    }),
+  );
 }
 
 function stopAuto(): void {
@@ -973,6 +1075,7 @@ function stopAuto(): void {
   }
   const b = maybe<HTMLButtonElement>('#proto-auto');
   if (b) b.textContent = 'Auto-play';
+  maybe('#proto-gate')?.setAttribute('aria-live', 'polite');
 }
 
 render();

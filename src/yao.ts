@@ -133,7 +133,7 @@ function randomScalar(): bigint {
   return (n % (ORDER - 1n)) + 1n;
 }
 
-function randomBit(): 0 | 1 {
+export function randomBit(): 0 | 1 {
   const b = randomBytes(1)[0] & 1;
   return b === 0 ? 0 : 1;
 }
@@ -373,6 +373,51 @@ export async function trialDecryptAll(
     }
   }
   return results;
+}
+
+// ── Exhibit 5: the label-reuse attack ────────────────────────────────────
+
+export interface ReuseAttackDecrypt {
+  bobBit: 0 | 1;
+  slot: 0 | 1 | 2 | 3;
+  outputLabelHex: string;
+}
+
+export interface ReuseAttackResult {
+  aliceBit: 0 | 1;
+  aliceLabelHex: string;
+  decrypts: [ReuseAttackDecrypt, ReuseAttackDecrypt];
+  outputsEqual: boolean;
+  deducedAliceBit: 0 | 1;
+}
+
+/**
+ * Why garbled circuits are single-use. If a gate is (wrongly) reused so the
+ * evaluator ends up holding BOTH labels for his own wire B, he can decrypt two
+ * rows against Alice's active label: the outputs are C(a∧0)=C₀ and C(a∧1)=C_a.
+ * Equal outputs ⇒ a=0, different ⇒ a=1 — Alice's secret bit leaks with no
+ * cryptographic break at all, just two honest decryptions.
+ */
+export async function runLabelReuseAttack(demo: AndGateDemo, aliceBit: 0 | 1): Promise<ReuseAttackResult> {
+  // The attack IS the honest evaluator, run once per B label: reuse hands Bob
+  // both labels, and nothing stops him evaluating both rows.
+  const [ev0, ev1] = await Promise.all([
+    evaluateAndGateDemo(demo, aliceBit, 0, false),
+    evaluateAndGateDemo(demo, aliceBit, 1, false),
+  ]);
+  const decrypts: [ReuseAttackDecrypt, ReuseAttackDecrypt] = [
+    { bobBit: 0, slot: ev0.slot, outputLabelHex: ev0.outputLabelHex },
+    { bobBit: 1, slot: ev1.slot, outputLabelHex: ev1.outputLabelHex },
+  ];
+  const outputsEqual = decrypts[0].outputLabelHex === decrypts[1].outputLabelHex;
+  const deducedAliceBit: 0 | 1 = outputsEqual ? 0 : 1;
+  return {
+    aliceBit,
+    aliceLabelHex: bytesToHex(aliceBit === 0 ? demo.wireA.zero : demo.wireA.one),
+    decrypts,
+    outputsEqual,
+    deducedAliceBit,
+  };
 }
 
 // ── Exhibit 3: Chou-Orlandi 1-of-2 OT ────────────────────────────────────
