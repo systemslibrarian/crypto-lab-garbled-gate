@@ -548,7 +548,7 @@ function renderAndStage(): void {
         }
       }
       const colourDots = `<span class="chip-colour colour-${r.selectBits[0]}">${r.selectBits[0]}</span><span class="chip-colour colour-${r.selectBits[1]}">${r.selectBits[1]}</span>`;
-      return `<div class="lock-row lock-${lockState}">
+      return `<div class="lock-row lock-${lockState}" role="listitem">
         <span class="lock">${icon}</span>
         <span class="lock-slot">slot ${r.slot}</span>
         <span class="lock-colours" title="point-and-permute colour bits">${colourDots}</span>
@@ -583,7 +583,7 @@ function renderAndStage(): void {
       <div class="and-diagram">${andGateSvg({ aBit, bBit, lit })}</div>
       ${wires}
     </div>
-    <div class="lock-table" role="table" aria-label="Garbled AND table">${rows}</div>
+    <div class="lock-table" role="list" aria-label="Garbled AND table">${rows}</div>
     <div class="status stage-narrate" aria-live="polite">${narrate}</div>
     ${trial}`;
 }
