@@ -1,4 +1,7 @@
 [data-theme='dark'] {
+  /* Tell the UA which scheme native widgets (selects, scrollbars) should use —
+     without this, mobile browsers paint form-control text for a light page. */
+  color-scheme: dark;
   --background: #0f1117;
   --surface: #1a1b26;
   --surface-alt: #222333;
@@ -15,12 +18,16 @@
   --channel-color: #9ca3af;
   --success: #34d399;
   --warning: #fb923c;
-  --hidden: #ef4444;
+  /* #ef4444 is 4.14:1 on the red-tinted quiz-wrong background — just under AA. */
+  --hidden: #f87171;
   --bit0: #38bdf8;
   --bit1: #c084fc;
+  /* White on #7c8aff is only 3.03:1 — primary buttons need dark text here. */
+  --accent-contrast: #0f1117;
 }
 
 [data-theme='light'] {
+  color-scheme: light;
   --background: #f8f9fb;
   --surface: #ffffff;
   --surface-alt: #f0f1f4;
@@ -35,11 +42,15 @@
   --receiver-color: #d97706;
   --receiver-surface: #fffbeb;
   --channel-color: #6b7280;
-  --success: #059669;
-  --warning: #ea580c;
-  --hidden: #dc2626;
-  --bit0: #0284c7;
+  /* Darker status/bit hues: #059669 (3.8:1), #ea580c (3.6:1), #dc2626 on the
+     quiz-wrong tint (4.1:1) and #0284c7 (4.1:1) all fall below 4.5:1 AA on
+     light backgrounds. */
+  --success: #047857;
+  --warning: #c2410c;
+  --hidden: #b91c1c;
+  --bit0: #0369a1;
   --bit1: #9333ea;
+  --accent-contrast: #ffffff;
 }
 
 *,
@@ -70,8 +81,8 @@
   top: 0;
   z-index: 100;
   padding: 0.75rem 1.25rem;
-  background: var(--accent);
-  color: #fff;
+  background-color: var(--accent);
+  color: var(--accent-contrast);
   font-weight: 600;
   border-radius: 0 0 6px 0;
   text-decoration: none;
@@ -97,6 +108,13 @@
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* html carries its own background: without it, the body background is promoted
+   to paint the canvas and WebKit/Chromium mobile emulation then report body as
+   transparent — axe-core's contrast checks fall back to assuming a white page. */
+html {
+  background-color: var(--background);
 }
 
 body {
@@ -163,7 +181,7 @@ h3 {
   height: 2.6rem;
   border-radius: 50%;
   border: 1px solid var(--border);
-  background: var(--surface);
+  background-color: var(--surface);
   color: var(--text);
   display: inline-flex;
   align-items: center;
@@ -174,7 +192,7 @@ h3 {
 }
 
 .theme-toggle:hover {
-  background: var(--surface-alt);
+  background-color: var(--surface-alt);
   color: var(--accent);
 }
 
@@ -185,7 +203,7 @@ main {
 .section {
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--surface) 95%, transparent);
+  background-color: color-mix(in srgb, var(--surface) 95%, transparent);
   margin: 1rem 0;
   overflow: hidden;
 }
@@ -199,7 +217,7 @@ main {
 .section-head {
   padding: 1rem 1rem 0.65rem;
   border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface-alt) 76%, transparent);
+  background-color: color-mix(in srgb, var(--surface-alt) 76%, transparent);
 }
 
 .section-body {
@@ -216,13 +234,13 @@ main {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0.8rem;
-  background: var(--surface);
+  background-color: var(--surface);
 }
 
 .callout {
   border-left: 3px solid var(--accent);
   padding: 0.8rem;
-  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  background-color: color-mix(in srgb, var(--accent) 9%, var(--surface));
   border-radius: 8px;
   margin-top: 0.8rem;
 }
@@ -249,7 +267,7 @@ button,
 .btn {
   border: 1px solid var(--border);
   border-radius: 9px;
-  background: var(--surface-alt);
+  background-color: var(--surface-alt);
   color: var(--text);
   padding: 0.55rem 0.75rem;
   cursor: pointer;
@@ -275,7 +293,7 @@ button:disabled,
 pre,
 code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  background: var(--code-bg);
+  background-color: var(--code-bg);
   border-radius: 4px;
 }
 
@@ -304,16 +322,22 @@ pre {
 }
 
 .table th {
-  background: color-mix(in srgb, var(--surface-alt) 65%, transparent);
+  background-color: color-mix(in srgb, var(--surface-alt) 65%, transparent);
 }
 
 select {
   min-height: 44px;
   font-size: 1rem;
-  padding: 0.4rem;
+  padding: 0.4rem 1.8rem 0.4rem 0.4rem;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--surface);
+  /* Opt out of native widget rendering: the UA path ignores the author color
+     under Chromium/WebKit mobile emulation (reported as black-on-dark by axe). */
+  appearance: none;
+  background-color: var(--surface);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%238b949e' stroke-width='2' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
   color: var(--text);
 }
 
@@ -370,7 +394,7 @@ output {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.8rem;
-  background: var(--surface);
+  background-color: var(--surface);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   overflow-x: auto;
   font-size: 0.9rem;
@@ -468,7 +492,7 @@ output {
   padding: 0.35rem 0.7rem;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: var(--surface);
+  background-color: var(--surface);
   color: var(--text-muted);
 }
 .toc a:hover {
@@ -478,14 +502,14 @@ output {
 
 /* ── Button variants ───────────────────────────────────────────────────── */
 .btn-primary {
-  background: var(--accent);
+  background-color: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 .btn-primary:hover {
-  background: var(--accent-hover);
+  background-color: var(--accent-hover);
   border-color: var(--accent-hover);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 .btn-ghost {
   background: transparent;
@@ -567,11 +591,11 @@ output {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.25rem 0.5rem;
-  background: var(--surface);
+  background-color: var(--surface);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.8rem;
   margin: 0.18rem 0;
-  transition: border-color 0.15s, box-shadow 0.15s, opacity 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s, color 0.15s;
 }
 .chip-mini {
   padding: 0.1rem 0.3rem;
@@ -605,18 +629,21 @@ output {
   color: #fff;
 }
 .colour-0 {
-  background: #64748b;
+  background-color: #64748b;
 }
 .colour-1 {
-  background: #0f172a;
+  background-color: #0f172a;
   border: 1px solid #64748b;
 }
 .chip-active {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
 }
-.chip-dim {
-  opacity: 0.4;
+/* De-emphasize via color, not opacity — opacity sinks contrast below WCAG AA. */
+.chip-dim,
+.chip-dim .chip-bit,
+.chip-dim .chip-hex {
+  color: var(--text-muted);
 }
 
 /* ── AND-gate stage ────────────────────────────────────────────────────── */
@@ -688,7 +715,7 @@ output {
   padding: 0.5rem 0.7rem;
   border: 1px solid var(--border);
   border-radius: 9px;
-  background: var(--surface);
+  background-color: var(--surface);
   font-size: 0.84rem;
   flex-wrap: wrap;
 }
@@ -723,14 +750,20 @@ output {
 }
 .lock-open {
   border-color: var(--success);
-  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+  background-color: color-mix(in srgb, var(--success) 12%, var(--surface));
 }
+/* Muted text sits just under AA on the success-tinted row — lift it to --text. */
+.lock-open .lock-ct,
+.lock-open .lock-note {
+  color: var(--text);
+}
+/* De-emphasize via color, not opacity — opacity sinks contrast below WCAG AA. */
 .lock-dead {
-  opacity: 0.5;
+  color: var(--text-muted);
   border-style: dashed;
 }
 .lock-dim {
-  opacity: 0.45;
+  color: var(--text-muted);
 }
 .trial-strip {
   display: flex;
@@ -749,7 +782,7 @@ output {
 .trial-ok {
   color: var(--success);
   border-color: var(--success);
-  background: color-mix(in srgb, var(--success) 10%, transparent);
+  background-color: color-mix(in srgb, var(--success) 10%, transparent);
 }
 .trial-fail {
   color: var(--hidden);
@@ -781,14 +814,14 @@ output {
 .ot-box {
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--surface);
+  background-color: var(--surface);
   overflow: hidden;
 }
 .ot-box-top {
   padding: 0.45rem 0.7rem;
   font-size: 0.82rem;
   font-weight: 700;
-  background: color-mix(in srgb, var(--surface-alt) 70%, transparent);
+  background-color: color-mix(in srgb, var(--surface-alt) 70%, transparent);
   border-bottom: 1px solid var(--border);
 }
 .ot-box-body {
@@ -815,7 +848,7 @@ output {
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--surface);
+  background-color: var(--surface);
   padding: 0.5rem;
   margin: 0.5rem 0;
   -webkit-overflow-scrolling: touch;
@@ -881,23 +914,23 @@ output {
   stroke-width: 2.5;
 }
 .swatch.cnode-alice {
-  background: var(--sender-surface);
+  background-color: var(--sender-surface);
   border: 2px solid var(--sender-color);
 }
 .swatch.cnode-bob {
-  background: var(--receiver-surface);
+  background-color: var(--receiver-surface);
   border: 2px solid var(--receiver-color);
 }
 .swatch.cnode-xor {
-  background: var(--surface-alt);
+  background-color: var(--surface-alt);
   border: 2px solid var(--channel-color);
 }
 .swatch.cnode-gate {
-  background: var(--surface-alt);
+  background-color: var(--surface-alt);
   border: 2px solid var(--accent);
 }
 .swatch.cnode-out {
-  background: var(--surface-alt);
+  background-color: var(--surface-alt);
   border: 2.5px solid var(--accent);
 }
 .circuit-legend {
@@ -920,7 +953,7 @@ output {
   border: 1px solid var(--border);
   border-radius: 9px;
   padding: 0.55rem 0.6rem;
-  background: var(--surface);
+  background-color: var(--surface);
   text-align: center;
 }
 .meter-v {
@@ -948,7 +981,7 @@ output {
   border-radius: 8px;
   padding: 0.8rem;
   margin-top: 0.9rem;
-  background: color-mix(in srgb, var(--warning) 6%, var(--surface));
+  background-color: color-mix(in srgb, var(--warning) 6%, var(--surface));
 }
 .quiz-q {
   margin: 0 0 0.6rem;
@@ -970,17 +1003,17 @@ output {
 .quiz-opt {
   text-align: left;
   width: 100%;
-  background: var(--surface);
+  background-color: var(--surface);
 }
 .quiz-correct {
   border-color: var(--success);
   color: var(--success);
-  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+  background-color: color-mix(in srgb, var(--success) 12%, var(--surface));
 }
 .quiz-wrong {
   border-color: var(--hidden);
   color: var(--hidden);
-  background: color-mix(in srgb, var(--hidden) 10%, var(--surface));
+  background-color: color-mix(in srgb, var(--hidden) 10%, var(--surface));
 }
 .quiz-feedback {
   margin-top: 0.5rem;
