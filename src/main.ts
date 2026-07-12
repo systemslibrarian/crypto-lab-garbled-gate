@@ -181,21 +181,20 @@ function handleQuizClick(target: HTMLElement): void {
 function render(): void {
   const app = q('#app');
   app.innerHTML = `
-    <a href="#ex1" class="skip-link">Skip to main content</a>
-    <header class="site-header" role="banner">
-      <div class="container header-grid">
-        <div>
-          <h1>Garbled Gate</h1>
-          <p class="subtitle">Yao's Garbled Circuits, made visible: watch one gate get garbled, one row unlock, and a whole comparator decide who's richer — without revealing a thing.</p>
-        </div>
-      </div>
-      <div class="container" style="position:relative;">
-        <button id="theme-toggle" class="theme-toggle" type="button"></button>
-      </div>
-    </header>
-
     <main role="main" id="main-content">
       <div class="container">
+        <header class="cl-hero">
+          <div class="cl-hero-main">
+            <h1 class="cl-hero-title">Garbled Gate</h1>
+            <p class="cl-hero-sub">Yao's Garbled Circuits · secure two-party computation</p>
+            <p class="cl-hero-desc">Watch one AND gate get garbled, one padlock row unlock via oblivious transfer, and a whole comparator decide who's richer — without either party revealing a bit.</p>
+          </div>
+          <aside class="cl-hero-why" aria-label="Why it matters">
+            <span class="cl-hero-why-label">WHY IT MATTERS</span>
+            <p class="cl-hero-why-text">Garbled circuits let mutually distrustful parties compute on private data — auctions, medical stats, key management — with no trusted referee. The evaluator learns only the answer, never the other side's inputs.</p>
+          </aside>
+        </header>
+        <button id="theme-toggle" class="theme-toggle" type="button" hidden aria-hidden="true"></button>
         ${navStrip()}
         ${exhibit1()}
         ${exhibit2()}
