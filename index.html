@@ -25,11 +25,6 @@
     <meta name="twitter:card" content="summary" />
   </head>
   <body>
-<!-- BEGIN crypto-lab shared header — managed; edit shared-header.html + re-run reapply-header.py
-     Identical on every lab. Self-contained styles. Accents use each demo's own
-     --accent CSS variable (teal #35d6bb fallback). The ONLY per-repo value is the
-     repo name (crypto-lab-garbled-gate) in the GitHub link.
-     Source of truth: github.com/systemslibrarian/crypto-lab/shared-header.html -->
 <style>
   .cl-topbar{
     /* The bar is always dark (#0b1512) regardless of page theme, so header
@@ -141,8 +136,7 @@
     else dedupeBanner();
   })();
 </script>
-<!-- END crypto-lab shared header -->
-    <div id="app"></div>
+    <div id="app" tabindex="-1"></div>
 
     <!-- No opacity here: dimming the text drops it below WCAG AA contrast. -->
     <footer role="contentinfo" style="text-align:center; padding: 1.5rem; font-size: 0.85rem; margin-top: 2rem;">
