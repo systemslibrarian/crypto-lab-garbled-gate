@@ -478,6 +478,7 @@ function notesAndRefs(): string {
           <li><strong>GCM as the “did it open?” signal.</strong> The authentication tag is what makes a wrong-key decryption fail cleanly — handy for the “why only one row opens” view. Production garbling uses point-and-permute so it never trial-decrypts at all.</li>
           <li><strong>Free XOR</strong> is implemented for real (global Δ with forced-1 lsb); XOR gates cost zero ciphertext. Half Gates and row reduction are described, not implemented.</li>
           <li><strong>OT</strong> is genuine Chou–Orlandi on Curve25519 via <code>@noble/curves</code>. One standalone OT per input bit — no OT extension.</li>
+          <li><strong>Cofactor 8.</strong> That OT runs in the raw ed25519 group, whose cofactor is 8, and never clears it. Production Chou–Orlandi wants cofactor clearing or a prime-order abstraction such as ristretto255; without one, small-subgroup contributions can leak the receiver's choice bit and put the security reduction out of reach.</li>
           <li><strong>Security model is semi-honest.</strong> No cut-and-choose; don't guard real secrets with this code.</li>
           <li>The "God view" exists only because we control both parties here. In a real run, Bob has labels, never bits.</li>
         </ul>
