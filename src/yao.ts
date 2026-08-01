@@ -580,6 +580,19 @@ async function garbleComparator(circuit: GateDef[]): Promise<GarbledCircuit> {
   return { delta, labels, gates };
 }
 
+/**
+ * Decode an active label back to its logical bit by matching it against the
+ * wire's label pair. Throws if it is neither — a label that matches neither
+ * means the garbled run went wrong, and silently folding that into "0" is how
+ * a demo ends up printing a verdict it never computed.
+ */
+function decodeLabel(pair: LabelPair, label: Uint8Array | undefined, wire: string): 0 | 1 {
+  const hex = label === undefined ? '' : bytesToHex(label);
+  if (hex === bytesToHex(pair.zero)) return 0;
+  if (hex === bytesToHex(pair.one)) return 1;
+  throw new Error(`Wire ${wire}: active label ${hex || '(missing)'} matches neither of its two labels`);
+}
+
 async function evaluateComparator(
   gc: GarbledCircuit,
   active: Record<string, Uint8Array>,
@@ -587,12 +600,16 @@ async function evaluateComparator(
   for (const gate of gc.gates) {
     if (gate.type === 'XOR') {
       active[gate.out] = xorBytes(active[gate.inA], active[gate.inB]);
-      continue;
+    } else {
+      const slot = (labelPermuteBit(active[gate.inA]) << 1) | labelPermuteBit(active[gate.inB]);
+      const row = gate.table[slot];
+      const key = deriveGateKey(active[gate.inA], active[gate.inB], gate.id);
+      active[gate.out] = await aes128Decrypt(key, hexToBytes(row.ivHex), hexToBytes(row.cipherHex));
     }
-    const slot = (labelPermuteBit(active[gate.inA]) << 1) | labelPermuteBit(active[gate.inB]);
-    const row = gate.table[slot];
-    const key = deriveGateKey(active[gate.inA], active[gate.inB], gate.id);
-    active[gate.out] = await aes128Decrypt(key, hexToBytes(row.ivHex), hexToBytes(row.cipherHex));
+    // Every label the evaluator holds must be one of the two the garbler minted
+    // for that wire. Checking it here (we hold both sides, Bob would not) turns
+    // a wrong garbling into a thrown error rather than a plausible-looking bit.
+    decodeLabel(gc.labels[gate.out], active[gate.out], gate.out);
   }
 }
 
@@ -636,16 +653,18 @@ export async function runMillionaireProtocol3Bit(aliceValue: number, bobValue: n
 
   await evaluateComparator(gc, active);
 
-  // Verify the garbled run agrees with plaintext on every output wire.
+  // The verdict comes out of the GARBLED run: decode the two output labels
+  // against their mappings. Plaintext is only the cross-check.
+  const garbledOut: Record<string, 0 | 1> = {};
   for (const out of layout.outputs) {
-    const garbledBit = bytesToHex(active[out]) === bytesToHex(gc.labels[out].one) ? 1 : 0;
-    if (garbledBit !== wireBits[out]) {
-      throw new Error(`Garbled/plain mismatch on wire ${out}: ${garbledBit} vs ${wireBits[out]}`);
+    garbledOut[out] = decodeLabel(gc.labels[out], active[out], out);
+    if (garbledOut[out] !== wireBits[out]) {
+      throw new Error(`Garbled/plain mismatch on wire ${out}: ${garbledOut[out]} vs ${wireBits[out]}`);
     }
   }
 
-  const gtBit = wireBits.gt;
-  const eqBit = wireBits.eq;
+  const gtBit = garbledOut.gt;
+  const eqBit = garbledOut.eq;
   let output: 'Alice is richer' | 'Bob is richer' | 'Equal';
   if (eqBit === 1) {
     output = 'Equal';
@@ -723,4 +742,13 @@ export async function runMillionaireProtocol3Bit(aliceValue: number, bobValue: n
 }
 
 // Exported for the test suite.
-export const __test = { comparatorCircuit, garbleBinaryGate, makeLabelPair, randomDelta, xorBytes, deriveGateKey };
+export const __test = {
+  comparatorCircuit,
+  garbleBinaryGate,
+  makeLabelPair,
+  randomDelta,
+  xorBytes,
+  deriveGateKey,
+  decodeLabel,
+  randomBytes,
+};

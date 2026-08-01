@@ -13,7 +13,7 @@ import {
   __test,
 } from './yao';
 
-const { comparatorCircuit } = __test;
+const { comparatorCircuit, decodeLabel, makeLabelPair, randomDelta, randomBytes } = __test;
 
 function xorHex(a: Uint8Array, b: Uint8Array): string {
   const out = new Uint8Array(a.length);
@@ -74,6 +74,18 @@ describe('single garbled AND gate', () => {
       // and opposite colour bits, which point-and-permute relies on
       expect(labelPermuteBit(wire.zero)).not.toBe(labelPermuteBit(wire.one));
     }
+  });
+});
+
+describe('output-label decoding is strict', () => {
+  it('decodes both real labels and rejects anything else', () => {
+    const pair = makeLabelPair(randomDelta());
+    expect(decodeLabel(pair, pair.zero, 'w')).toBe(0);
+    expect(decodeLabel(pair, pair.one, 'w')).toBe(1);
+    // A label that belongs to neither must throw, not silently read as 0 —
+    // that is what stops a broken garbled run from printing a plausible verdict.
+    expect(() => decodeLabel(pair, randomBytes(16), 'w')).toThrow();
+    expect(() => decodeLabel(pair, undefined, 'w')).toThrow();
   });
 });
 
@@ -147,8 +159,9 @@ describe('full millionaire protocol', () => {
     // 49 protocols × (garbling + 3 ed25519 OTs) is heavy; allow extra time.
     for (let a = 1; a <= 7; a += 1) {
       for (let b = 1; b <= 7; b += 1) {
-        // runMillionaireProtocol3Bit internally throws if garbled != plaintext,
-        // so reaching here already proves the garbled run is correct.
+        // run.output is decoded from the GARBLED output labels; the function
+        // also throws if any wire's active label matches neither of its two
+        // labels, or if the garbled and plaintext runs disagree.
         const run = await runMillionaireProtocol3Bit(a, b);
         const expected = a > b ? 'Alice is richer' : a < b ? 'Bob is richer' : 'Equal';
         expect(run.output).toBe(expected);

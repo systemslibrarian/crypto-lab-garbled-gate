@@ -323,7 +323,7 @@ function exhibit3(): string {
     'ex3',
     'Exhibit 3 — Oblivious Transfer for Bob\'s inputs',
     `
-    <p>Bob needs the label for <em>his</em> bit on each input wire — but Alice must not learn which one he took, and Bob must not see the other. 1-of-2 <strong>Oblivious Transfer</strong> delivers exactly that, here via Chou–Orlandi (LATINCRYPT 2015) on Curve25519. Same machinery as <a href="https://systemslibrarian.github.io/crypto-lab-ot-gate/" target="_blank" rel="noopener">OT Gate</a>.</p>
+    <p>Bob needs the label for <em>his</em> bit on each input wire — but Alice must not learn which one he took, and Bob must not see the other. 1-of-2 <strong>Oblivious Transfer</strong> delivers exactly that, here via Chou–Orlandi (LATINCRYPT 2015) in the ed25519 group. Same machinery as <a href="https://systemslibrarian.github.io/crypto-lab-ot-gate/" target="_blank" rel="noopener">OT Gate</a>.</p>
     <div class="row">
       <div style="flex:1; min-width:200px;">
         <label for="ot-choice">Bob's choice bit</label>
@@ -477,7 +477,7 @@ function notesAndRefs(): string {
           <li><strong>Gate encryption.</strong> Each row is encrypted under a single key <code>H(A‖B‖gateId)</code> with AES-128-GCM, rather than the textbook double-encryption <code>Enc<sub>A</sub>(Enc<sub>B</sub>(out))</code>. Both bind a row to a pair of input labels; the hash form is closer to modern hash-based garbling and keeps the visual to one padlock per row.</li>
           <li><strong>GCM as the “did it open?” signal.</strong> The authentication tag is what makes a wrong-key decryption fail cleanly — handy for the “why only one row opens” view. Production garbling uses point-and-permute so it never trial-decrypts at all.</li>
           <li><strong>Free XOR</strong> is implemented for real (global Δ with forced-1 lsb); XOR gates cost zero ciphertext. Half Gates and row reduction are described, not implemented.</li>
-          <li><strong>OT</strong> is genuine Chou–Orlandi on Curve25519 via <code>@noble/curves</code>. One standalone OT per input bit — no OT extension.</li>
+          <li><strong>OT</strong> is genuine Chou–Orlandi in the ed25519 group (Curve25519's twisted-Edwards form) via <code>@noble/curves</code>. One standalone OT per input bit — no OT extension.</li>
           <li><strong>Cofactor 8.</strong> That OT runs in the raw ed25519 group, whose cofactor is 8, and never clears it. Production Chou–Orlandi wants cofactor clearing or a prime-order abstraction such as ristretto255; without one, small-subgroup contributions can leak the receiver's choice bit and put the security reduction out of reach.</li>
           <li><strong>Security model is semi-honest.</strong> No cut-and-choose; don't guard real secrets with this code.</li>
           <li>The "God view" exists only because we control both parties here. In a real run, Bob has labels, never bits.</li>
@@ -537,10 +537,14 @@ function renderAndStage(): void {
       let icon = '🔒';
       let note = '';
       if (ev) {
-        if (r.slot === ev.slot) {
+        // When the trial run exists, the padlock state is the MEASURED GCM
+        // result for that row, not an assumption about which row should open.
+        const trial = state.andTrial?.find((t) => t.slot === r.slot);
+        const opened = trial ? trial.ok : r.slot === ev.slot && ev.decryptOk;
+        if (opened) {
           lockState = 'open';
           icon = '🔓';
-          note = 'colour bits match → Bob opens this one';
+          note = trial ? 'GCM tag verified → opens' : 'colour bits match → Bob opens this one';
         } else {
           lockState = state.andTrial ? 'dead' : 'dim';
           icon = '🔒';
