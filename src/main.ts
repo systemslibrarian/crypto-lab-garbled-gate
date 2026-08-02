@@ -424,7 +424,7 @@ function exhibit5(): string {
       </tbody>
     </table>
     </div>
-    <div id="efficiency-live" class="status" aria-live="polite">Run Exhibit 4 to measure this circuit's real garbled-payload size and how many bytes Free XOR saved.</div>
+    <div id="efficiency-live" class="status" aria-live="polite">Run Exhibit 4 to measure this circuit's real garbled-payload size and estimate a classic-garbling counterfactual for its XOR gates.</div>
     <h3 style="margin-top:1rem;">Watch the single-use rule break: a live label-reuse attack</h3>
     <p>Everything above says a garbled circuit must be <strong>single-use</strong>. Here's why, run for real. Alice garbles one AND gate with a secret input bit <em>a</em>. Then she (wrongly) reuses it, so Bob ends up holding <em>both</em> of his labels B⁰ <em>and</em> B¹. Two honest decryptions later, her "hidden" bit falls out — no cryptography is broken, only the protocol rule.</p>
     <div class="stepper" role="group" aria-label="Reuse attack controls">
@@ -787,7 +787,7 @@ function renderProtoMeter(): void {
     ['XOR (free)', `${p.xorCount}`],
     ['Oblivious transfers', `${p.otCount}`],
     ['Garbled payload', `${p.garbledBytes} B`],
-    ['Saved by Free XOR', `≈ ${p.freeXorBytesSaved} B`],
+    ['Estimated Free XOR saving', `≈ ${p.freeXorBytesSaved} B`],
   ];
   meter.innerHTML = cells
     .map(([k, v]) => `<div class="meter"><div class="meter-v">${v}</div><div class="meter-k">${k}</div></div>`)
@@ -827,7 +827,7 @@ function renderEfficiency(): void {
   const el = maybe('#efficiency-live');
   const p = state.protocol;
   if (!el || !p) return;
-  el.innerHTML = `Measured on the last run: <strong>${p.garbledBytes} bytes</strong> of garbled tables for ${p.andOrCount} AND/OR gates, with ${p.xorCount} XOR gates contributing <strong>0 bytes</strong> (Free XOR saved ≈ ${p.freeXorBytesSaved} bytes vs. classic 4-row garbling).`;
+  el.innerHTML = `Measured on the last run: <strong>${p.garbledBytes} bytes</strong> of garbled tables for ${p.andOrCount} AND/OR gates, with ${p.xorCount} XOR gates contributing <strong>0 measured bytes</strong>. Counterfactual estimate: classic 4-row garbling for those XOR gates would add ≈ <strong>${p.freeXorBytesSaved} bytes</strong>, using the measured average row size of this run.`;
 }
 
 function refreshProtocol(): void {

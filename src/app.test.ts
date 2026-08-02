@@ -68,6 +68,9 @@ describe('UI mounts and wires up', () => {
       expect(document.querySelector('#circuit-stage .circuit-svg')).toBeTruthy();
       expect(document.querySelector('#proto-meter .meter')).toBeTruthy();
     });
+    const efficiency = document.getElementById('efficiency-live')!.textContent!;
+    expect(efficiency).toContain('Measured on the last run');
+    expect(efficiency).toContain('Counterfactual estimate');
     const stepBtn = document.getElementById('proto-step') as HTMLButtonElement;
     const backBtn = document.getElementById('proto-back') as HTMLButtonElement;
     expect(stepBtn.disabled).toBe(false);
