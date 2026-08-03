@@ -9,6 +9,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "test:a11y": "playwright test",
     "deploy": "npm run build && gh-pages -d dist"
   },
