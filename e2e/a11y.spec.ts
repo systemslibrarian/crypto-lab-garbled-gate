@@ -1,6 +1,36 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
+async function checkGradientContrast(page: Page, selector: string) {
+  const ratio = await page.evaluate((sel) => {
+    function getLuminance(r: number, g: number, b: number) {
+      const a = [r, g, b].map(v => {
+        v /= 255;
+        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      });
+      return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
+    }
+    const el = document.querySelector(sel);
+    if (!el) return 0;
+    const style = window.getComputedStyle(el);
+    const colorMatch = style.color.match(/\d+/g);
+    if (!colorMatch) return 0;
+    const [cr, cg, cb] = colorMatch.map(Number);
+    const textLum = getLuminance(cr, cg, cb);
+
+    const bgStyle = window.getComputedStyle(document.body);
+    const bgMatch = bgStyle.backgroundColor.match(/\d+/g);
+    if (!bgMatch) return 0;
+    const [br, bg, bb] = bgMatch.map(Number);
+    const bgLum = getLuminance(br, bg, bb);
+
+    const L1 = Math.max(textLum, bgLum);
+    const L2 = Math.min(textLum, bgLum);
+    return (L1 + 0.05) / (L2 + 0.05);
+  }, selector);
+  expect(ratio).toBeGreaterThanOrEqual(4.5);
+}
+
 /**
  * WCAG regression gate. Deploys are already gated on the Yao/OT KATs; this
  * gates them on accessibility the same way. Scans the full page in both themes
@@ -16,11 +46,7 @@ import { expect, test, type Page } from '@playwright/test';
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 async function neutralizeMotion(page: Page): Promise<void> {
-  await page.addStyleTag({
-    content:
-      '*, *::before, *::after { animation: none !important; transition: none !important; }\n' +
-      'body { animation: none !important; }',
-  });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
 }
 
 // Drive each exhibit so its dynamically-injected panels exist in the DOM.
@@ -78,9 +104,11 @@ async function scan(page: Page): Promise<void> {
 }
 
 async function runSuite(page: Page): Promise<void> {
+  await neutralizeMotion(page);
+  await expect(page.locator('h1')).toBeVisible();
+  await checkGradientContrast(page, '.cl-hero-desc');
   await driveExhibits(page);
   await revealHidden(page);
-  await neutralizeMotion(page);
   await scan(page);
 }
 
