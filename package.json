@@ -14,7 +14,7 @@
     "deploy": "npm run build && gh-pages -d dist"
   },
   "dependencies": {
-    "@noble/curves": "^2.0.1",
+    "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0"
   },
   "devDependencies": {
