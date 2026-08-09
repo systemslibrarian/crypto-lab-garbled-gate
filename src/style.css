@@ -6,7 +6,13 @@
   --surface: #1a1b26;
   --surface-alt: #222333;
   --text: #c9ccd6;
-  --text-muted: #8b8fa3;
+  /* Measured against the surfaces this token actually lands on, not against
+     --background. #8b8fa3 clears 5.89:1 on --background but the two radial
+     washes on <body> lift the hero area to rgb(44,57,92), where it measured
+     3.55:1 for .cl-hero-desc and 3.22:1 for .cl-hero-why-label (which sits on
+     a further accent tint), and the circuit's node fills took .cnode-sub to
+     3.50:1. #b0b5c7 measures 5.57:1, 5.04:1 and 5.49:1 on those three. */
+  --text-muted: #b0b5c7;
   --accent: #7c8aff;
   --accent-hover: #9da6ff;
   --border: #2d2f3d;
@@ -38,7 +44,12 @@
   --surface: #ffffff;
   --surface-alt: #f0f1f4;
   --text: #374151;
-  --text-muted: #6b7280;
+  /* #6b7280 is only 4.83:1 on plain white, so ANY surface tint pushes it under
+     AA — and the body washes below tint the whole hero. Measured there it was
+     2.87:1 for .cl-hero-desc and 2.68:1 for .cl-hero-why-label; on
+     --surface-alt, .cnode-sub read 4.28:1. #525b6b measures 5.52:1, 5.10:1 and
+     5.97:1 on those three, and 6.93:1 on plain --surface. */
+  --text-muted: #525b6b;
   --accent: #4f46e5;
   --accent-hover: #4338ca;
   --border: #dfe2e8;
@@ -133,6 +144,19 @@ body {
     var(--background);
   font-family: 'IBM Plex Sans', 'Avenir Next', 'Segoe UI', sans-serif;
   line-height: 1.55;
+}
+
+/* The wash percentages above were chosen for the dark theme, where 22% of a
+   saturated indigo over #0f1117 LIGHTENS it a little. Reused unchanged in the
+   light theme the same mix DARKENS near-white to rgb(184,190,243) — a mid
+   lavender the hero's own text then has to sit on, which is how .cl-hero-desc
+   ended up at 2.87:1 and .cl-hero-why-label at 2.68:1. Same decoration, a
+   strength the light background can carry: measured rgb(224,229,248). */
+[data-theme='light'] body {
+  background:
+    radial-gradient(1200px 500px at 10% -20%, color-mix(in srgb, var(--accent) 7%, transparent), transparent),
+    radial-gradient(900px 500px at 90% -10%, color-mix(in srgb, var(--sender-color) 6%, transparent), transparent),
+    var(--background);
 }
 
 a {
@@ -347,6 +371,11 @@ select {
 input[type='range'] {
   min-height: 44px;
   cursor: pointer;
+  /* SC 1.4.11: with no accent-color the UA paints its own thumb, which measured
+     1.97:1 against the page in the light theme (#8dbcf5 on white) and 1.69:1
+     against its own track — the handle is the part a user has to find, so that
+     is a real boundary failure. --accent measures 6.20:1 and 5.71:1. */
+  accent-color: var(--accent);
 }
 
 .status {
