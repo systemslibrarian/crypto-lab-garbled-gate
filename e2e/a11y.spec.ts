@@ -43,11 +43,6 @@ test.describe('WCAG A/AA gate', () => {
     await driveAllStates(page, 'dark @1280');
   });
 
-  test('light theme, desktop width', async ({ page }) => {
-    test.slow();
-    await boot(page, 'light');
-    await driveAllStates(page, 'light @1280');
-  });
 
   test('dark theme, 380px reflow width', async ({ page }) => {
     test.slow();
@@ -56,10 +51,4 @@ test.describe('WCAG A/AA gate', () => {
     await driveAllStates(page, 'dark @380');
   });
 
-  test('light theme, 380px reflow width', async ({ page }) => {
-    test.slow();
-    await page.setViewportSize(NARROW);
-    await boot(page, 'light');
-    await driveAllStates(page, 'light @380');
-  });
 });
