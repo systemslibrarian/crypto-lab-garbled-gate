@@ -1,5 +1,5 @@
 import { test } from '@playwright/test';
-import { boot, driveAllStates, NARROW, reportCollected } from './gate';
+import { boot, driveAllStates, expectBaselineNotStale, NARROW, reportCollected } from './gate';
 
 /**
  * WCAG A/AA gate.
@@ -22,6 +22,18 @@ test.describe('WCAG A/AA gate', () => {
   });
 
   test.afterAll(() => {
+    // The third rule of the non-text baseline: an entry that no longer appears
+    // fails, so a fixed finding has to be deleted rather than lingering as a
+    // permanent exemption. `expectBaselineNotStale` was exported from `gate.ts`
+    // and never imported, so that rule had never once run.
+    //
+    // It belongs here, beside `reportCollected`, for the same reason that one
+    // is here: `nonTextSeen` is module state, so the check reads whatever the
+    // configurations in THIS worker drove, and `afterAll` is the point at which
+    // that set is complete. Both baselined entries are top-bar controls present
+    // in every state of every configuration, so no split of tests across
+    // workers can make the set incomplete.
+    expectBaselineNotStale();
     reportCollected();
   });
 
