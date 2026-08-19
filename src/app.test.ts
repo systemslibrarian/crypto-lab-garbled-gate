@@ -4,7 +4,7 @@ import { describe, it, expect, beforeAll, vi } from 'vitest';
 /**
  * Smoke test: importing main.ts auto-runs render(). If any q() selector is
  * missing or a template throws, the import itself fails. We then drive the
- * crypto-free interactions (quiz, sliders, theme) to catch wiring regressions.
+ * crypto-free interactions (quiz, sliders) to catch wiring regressions.
  */
 describe('UI mounts and wires up', () => {
   beforeAll(async () => {
@@ -21,7 +21,7 @@ describe('UI mounts and wires up', () => {
   });
 
   it('mounts the interactive controls', () => {
-    for (const id of ['garble-and', 'run-ot', 'run-full', 'proto-step', 'proto-back', 'run-reuse', 'god-view', 'theme-toggle']) {
+    for (const id of ['garble-and', 'run-ot', 'run-full', 'proto-step', 'proto-back', 'run-reuse', 'god-view']) {
       expect(document.getElementById(id), `missing ${id}`).toBeTruthy();
     }
     // stage placeholders are present before any run
@@ -44,11 +44,15 @@ describe('UI mounts and wires up', () => {
     expect(document.getElementById('alice-wealth-val')!.textContent).toBe('$72M');
   });
 
-  it('theme toggle flips the document theme', () => {
-    const before = document.documentElement.getAttribute('data-theme');
-    (document.getElementById('theme-toggle') as HTMLButtonElement).click();
-    const after = document.documentElement.getAttribute('data-theme');
-    expect(after).not.toBe(before);
+  // Dark is the only theme, pinned by index.html before first paint. This used
+  // to assert a toggle flipped the theme; the toggle is gone, so the assertion
+  // is inverted — the app renders no theme control and owns no theme state.
+  it('ships no theme control and never writes the theme', () => {
+    expect(document.getElementById('theme-toggle')).toBeNull();
+    expect(document.querySelectorAll('.theme-toggle, [data-theme-toggle]').length).toBe(0);
+    // render() must not touch the pinned theme or the stored preference.
+    expect(document.documentElement.getAttribute('data-theme')).toBeNull();
+    expect(localStorage.getItem('theme')).toBeNull();
   });
 
   const hasSubtle = !!globalThis.crypto?.subtle;

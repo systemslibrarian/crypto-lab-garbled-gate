@@ -194,7 +194,6 @@ function render(): void {
             <p class="cl-hero-why-text">Garbled circuits let mutually distrustful parties compute on private data — auctions, medical stats, key management — with no trusted referee. The evaluator learns only the answer, never the other side's inputs.</p>
           </aside>
         </header>
-        <button id="theme-toggle" class="theme-toggle" type="button" hidden aria-hidden="true"></button>
         ${navStrip()}
         ${exhibit1()}
         ${exhibit2()}
@@ -207,7 +206,6 @@ function render(): void {
     </main>`;
 
   wireEvents();
-  setupThemeToggle();
   renderAndStage();
   renderCircuitStage();
 }
@@ -850,35 +848,9 @@ function refreshProtocol(): void {
   }
 }
 
-// ── Theme ────────────────────────────────────────────────────────────────
-
-function setThemeButton(theme: 'dark' | 'light'): void {
-  const btn = q<HTMLButtonElement>('#theme-toggle');
-  btn.textContent = theme === 'dark' ? '🌙' : '☀️';
-  btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
-}
-
-function persistTheme(theme: 'dark' | 'light'): void {
-  // localStorage can throw in sandboxed iframes / private mode — degrade gracefully.
-  try {
-    localStorage.setItem('theme', theme);
-  } catch {
-    /* no-op: theme just won't persist across reloads */
-  }
-}
-
-function setupThemeToggle(): void {
-  const btn = q<HTMLButtonElement>('#theme-toggle');
-  const initial = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
-  setThemeButton(initial);
-  btn.addEventListener('click', () => {
-    const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
-    const next: 'dark' | 'light' = current === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    persistTheme(next);
-    setThemeButton(next);
-  });
-}
+// Theme: dark is the only one, pinned in index.html's pre-paint script. This
+// app owns no theme state and never writes `data-theme` or the stored 'theme'
+// key — the toggle that used to do both was removed.
 
 // ── Events ───────────────────────────────────────────────────────────────
 
