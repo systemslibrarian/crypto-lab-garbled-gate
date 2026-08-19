@@ -14,17 +14,17 @@
     "deploy": "npm run build && gh-pages -d dist"
   },
   "dependencies": {
-    "@noble/curves": "^2.0.1",
+    "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
-    "@playwright/test": "^1.61.1",
+    "@playwright/test": "^1.62.1",
     "gh-pages": "^6.3.0",
-    "happy-dom": "^20.10.6",
-    "typescript": "^5.9.3",
+    "happy-dom": "^20.11.1",
+    "typescript": "^7.0.2",
     "vite": "^7.1.10",
-    "vitest": "^3.2.6"
+    "vitest": "^4.1.10"
   },
   "allowScripts": {
     "esbuild@0.27.7": true
