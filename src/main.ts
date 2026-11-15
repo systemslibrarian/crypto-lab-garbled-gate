@@ -446,7 +446,7 @@ function exhibit6(): string {
       <div class="card"><h3>Private Set Intersection</h3><p>Find shared contacts/measurements without revealing the rest. OT-extension-based PSI underlies private contact discovery at scale.</p></div>
       <div class="card"><h3>Secure ML inference</h3><p>Evaluate a model on private inputs for modest circuits; combined with secret sharing in mixed protocols for larger nets.</p></div>
       <div class="card"><h3>Sealed-bid auctions</h3><p>Reveal only the winner and clearing price; losing bids stay sealed.</p></div>
-      <div class="card"><h3>Threshold signatures</h3><p>OT techniques from the GC line appear in threshold-ECDSA families such as GG20.</p></div>
+      <div class="card"><h3>Threshold signatures</h3><p>OT-based multiplication from the GC line appears in threshold-ECDSA protocols such as DKLs (Doerner, Kondi, Lee, shelat); GG20 instantiates the same step with Paillier encryption instead.</p></div>
     </div>
     <div class="family-tree" role="img" aria-label="MPC protocol family tree from Yao 1986 to ABY 2015" style="margin-top:0.8rem;">Yao's Garbled Circuits (1986) — general 2-party
 ├─ GMW (1987) — multi-party from OT
