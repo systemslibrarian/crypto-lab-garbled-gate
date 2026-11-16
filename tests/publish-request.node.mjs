@@ -24,6 +24,7 @@ function request(exitCode) {
       cwd: root,
       env: { ...process.env, PATH: dir + delimiter + process.env.PATH, GH_TOKEN: '', PUBLISH_CONTROL_EXIT: String(exitCode) },
       encoding: 'utf8',
+      shell: !npmCli && process.platform === 'win32',
       timeout: 30000,
     });
   } finally {
