@@ -139,10 +139,12 @@ test("Exhibit 1: the verdict matches the quantised inputs the page reports", asy
     [40, 35],
     [12, 90],
     [50, 50],
+    [40, 41],
     [100, 1],
   ] as Array<[number, number]>) {
     await setRange(page, '#alice-wealth', alice);
     await setRange(page, '#bob-wealth', bob);
+    await expect(page.locator('#millionaire-result .verdict')).toHaveCount(0);
     await expect(page.locator('#alice-wealth-val')).toHaveText(`$${alice}M`);
     await expect(page.locator('#bob-wealth-val')).toHaveText(`$${bob}M`);
 

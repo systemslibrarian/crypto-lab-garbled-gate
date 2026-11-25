@@ -268,7 +268,7 @@ function exhibit1(): string {
     </div>
     ${quiz('m1', 'After the protocol runs, what does Bob learn about Alice\'s exact wealth?', [
       { label: 'Her exact dollar amount', correct: false, explain: 'No — the whole point is that the inputs never leave each party. Bob only sees scrambled labels.' },
-      { label: 'Only whether A > B (or =)', correct: true, explain: 'Right. The output wire reveals just the comparison verdict; the inputs stay hidden inside random labels.' },
+      { label: 'Which 3-bit level is higher, or whether the levels tie', correct: true, explain: 'Right. The circuit compares the two levels. Different dollar amounts can fall in the same level.' },
       { label: 'Nothing at all', correct: false, explain: 'He does learn the agreed output — the verdict — just not the inputs behind it.' },
     ])}`,
   );
@@ -874,8 +874,14 @@ function wireEvents(): void {
   // Exhibit 1
   const alice = q<HTMLInputElement>('#alice-wealth');
   const bob = q<HTMLInputElement>('#bob-wealth');
-  alice.addEventListener('input', () => (q('#alice-wealth-val').textContent = formatMoney(Number.parseInt(alice.value, 10))));
-  bob.addEventListener('input', () => (q('#bob-wealth-val').textContent = formatMoney(Number.parseInt(bob.value, 10))));
+  let revision = 0;
+  for (const [slider, output] of [[alice, '#alice-wealth-val'], [bob, '#bob-wealth-val']] as const) {
+    slider.addEventListener('input', () => {
+      revision += 1;
+      q(output).textContent = formatMoney(Number.parseInt(slider.value, 10));
+      q('#millionaire-result').textContent = 'Amounts changed. Run the comparison for the current inputs.';
+    });
+  }
 
   q<HTMLButtonElement>('#solve-millionaire').addEventListener('click', (e) =>
     withBusy(e.currentTarget as HTMLButtonElement, 'Running…', async () => {
@@ -883,8 +889,10 @@ function wireEvents(): void {
       const b = Number.parseInt(bob.value, 10);
       const a3 = Math.max(1, Math.min(7, Math.round((a / 100) * 7)));
       const b3 = Math.max(1, Math.min(7, Math.round((b / 100) * 7)));
+      const atStart = revision;
       const run = await runMillionaireProtocol3Bit(a3, b3);
-      q('#millionaire-result').innerHTML = `Verdict from the garbled circuit: <strong class="verdict">${run.output}</strong>.<br>
+      if (atStart !== revision) return;
+      q('#millionaire-result').innerHTML = `Comparison of the 3-bit wealth levels: <strong class="verdict">${run.output}</strong>.<br>
         <span class="muted">Inputs quantised to 3 bits for the live circuit: Alice ${a} → ${a3}, Bob ${b} → ${b3}. Explore the gate-by-gate run in Exhibit 4.</span>`;
     }),
   );
