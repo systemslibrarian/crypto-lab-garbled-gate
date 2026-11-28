@@ -12,7 +12,7 @@ Garbled Gate demonstrates Yao's Garbled Circuits (Yao, FOCS 1986) - the foundati
 - When constant-round communication is required (GC evaluates in 2 rounds)
 - Not practical for very large circuits (millions of gates) without significant optimization and hardware acceleration
 - Provides only semi-honest security by default - malicious security requires cut-and-choose or authenticated garbling (significant overhead)
-- Multi-party settings (>2 parties) require GMW or SPDZ extensions
+- This lab implements two-party Yao garbling. For three or more parties, alternatives include secret-sharing protocols such as SPDZ and multiparty garbling such as BMR.
 - Do NOT use this as a production MPC library — it is a teaching demo that documents where it simplifies for clarity.
 
 ## Live Demo
